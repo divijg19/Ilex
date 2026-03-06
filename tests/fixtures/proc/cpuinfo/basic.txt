@@ -1,0 +1,11 @@
+processor   : 0
+model name  : ExampleCore 9000
+
+processor   : 1
+model name  : ExampleCore 9000
+
+processor   : 2
+model name  : ExampleCore 9000
+
+processor   : 3
+model name  : ExampleCore 9000

@@ -3,7 +3,7 @@ use std::time::Instant;
 use crate::VERSION;
 use crate::cli::Invocation;
 use crate::config::ConfigState;
-use crate::contracts::evaluate_bootstrap_readiness;
+use crate::contracts::evaluate_foundation_readiness;
 use crate::detectors::DetectorRegistry;
 use crate::modules::ModuleRegistry;
 use crate::render::{
@@ -53,7 +53,7 @@ impl App {
             .iter()
             .map(ToString::to_string)
             .collect();
-        let readiness = evaluate_bootstrap_readiness(
+        let readiness = evaluate_foundation_readiness(
             self.invocation.canonical_command(),
             &detector_keys,
             &module_keys,
@@ -99,7 +99,14 @@ impl App {
             issues: detection
                 .issues
                 .iter()
-                .map(|issue| format!("{}: {}", issue.detector_key, issue.message))
+                .map(|issue| {
+                    format!(
+                        "{} [{}]: {}",
+                        issue.detector_key,
+                        issue.kind.as_str(),
+                        issue.message
+                    )
+                })
                 .collect(),
         };
 

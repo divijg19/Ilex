@@ -180,6 +180,12 @@ Exit criteria:
 - The detector to module to renderer pipeline is implemented end to end.
 - Core internal types are documented well enough to support the next scope.
 
+Implementation status:
+
+- `os`, `cpu`, and `memory` detectors are implemented for Linux.
+- Matching modules are rendered through the existing bootstrap-text renderer.
+- Foundation readiness is exposed at runtime through the `foundation-v1` contract.
+
 ## `0.2.0` Baseline Fetch
 
 Objective: ship the first genuinely useful daily-driver release.

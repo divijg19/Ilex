@@ -1,6 +1,6 @@
 use crate::modules::ModuleEntry;
 
-pub const BOOTSTRAP_CONTRACT_VERSION: &str = "bootstrap-v1";
+pub const FOUNDATION_CONTRACT_VERSION: &str = "foundation-v1";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReadinessCheck {
@@ -16,7 +16,7 @@ pub struct ReadinessReport {
     pub checks: Vec<ReadinessCheck>,
 }
 
-pub fn evaluate_bootstrap_readiness(
+pub fn evaluate_foundation_readiness(
     primary_command: &str,
     detector_keys: &[String],
     module_keys: &[String],
@@ -32,12 +32,16 @@ pub fn evaluate_bootstrap_readiness(
         },
         ReadinessCheck {
             key: "detector-registry",
-            passed: detector_keys.iter().any(|key| key == "os"),
+            passed: ["os", "cpu", "memory"]
+                .iter()
+                .all(|required| detector_keys.iter().any(|key| key == required)),
             detail: format!("registered detectors: {}", detector_keys.join(", ")),
         },
         ReadinessCheck {
             key: "module-registry",
-            passed: module_keys.iter().any(|key| key == "os"),
+            passed: ["os", "cpu", "memory"]
+                .iter()
+                .all(|required| module_keys.iter().any(|key| key == required)),
             detail: format!("registered modules: {}", module_keys.join(", ")),
         },
         ReadinessCheck {
@@ -47,7 +51,9 @@ pub fn evaluate_bootstrap_readiness(
         },
         ReadinessCheck {
             key: "snapshot-flow",
-            passed: module_entries.iter().any(|entry| entry.key == "os"),
+            passed: ["os", "cpu", "memory"]
+                .iter()
+                .all(|required| module_entries.iter().any(|entry| &entry.key == required)),
             detail: format!("renderable module entries: {}", module_entries.len()),
         },
         ReadinessCheck {
@@ -58,7 +64,7 @@ pub fn evaluate_bootstrap_readiness(
     ];
 
     ReadinessReport {
-        contract_version: BOOTSTRAP_CONTRACT_VERSION,
+        contract_version: FOUNDATION_CONTRACT_VERSION,
         ready_for_foundations: checks.iter().all(|check| check.passed),
         checks,
     }
@@ -66,37 +72,60 @@ pub fn evaluate_bootstrap_readiness(
 
 #[cfg(test)]
 mod tests {
-    use super::{BOOTSTRAP_CONTRACT_VERSION, evaluate_bootstrap_readiness};
+    use super::{FOUNDATION_CONTRACT_VERSION, evaluate_foundation_readiness};
     use crate::modules::ModuleEntry;
 
     #[test]
-    fn readiness_passes_for_bootstrap_happy_path() {
-        let report = evaluate_bootstrap_readiness(
+    fn readiness_passes_for_foundation_happy_path() {
+        let report = evaluate_foundation_readiness(
             "corefetch",
-            &["os".to_owned()],
-            &["os".to_owned()],
+            &["os".to_owned(), "cpu".to_owned(), "memory".to_owned()],
+            &["os".to_owned(), "cpu".to_owned(), "memory".to_owned()],
             &["bootstrap-text".to_owned()],
-            &[ModuleEntry {
-                key: "os",
-                label: "OS",
-                value: "Fedora Linux 43".to_owned(),
-            }],
+            &[
+                ModuleEntry {
+                    key: "os",
+                    label: "OS",
+                    value: "Fedora Linux 43".to_owned(),
+                },
+                ModuleEntry {
+                    key: "cpu",
+                    label: "CPU",
+                    value: "ExampleCore 9000 (4 cores)".to_owned(),
+                },
+                ModuleEntry {
+                    key: "memory",
+                    label: "Memory",
+                    value: "7.8 GiB / 31.2 GiB".to_owned(),
+                },
+            ],
             0,
         );
 
-        assert_eq!(report.contract_version, BOOTSTRAP_CONTRACT_VERSION);
+        assert_eq!(report.contract_version, FOUNDATION_CONTRACT_VERSION);
         assert!(report.ready_for_foundations);
         assert!(report.checks.iter().all(|check| check.passed));
     }
 
     #[test]
-    fn readiness_fails_when_os_flow_is_missing() {
-        let report = evaluate_bootstrap_readiness(
+    fn readiness_fails_when_memory_flow_is_missing() {
+        let report = evaluate_foundation_readiness(
             "corefetch",
-            &["os".to_owned()],
-            &["os".to_owned()],
+            &["os".to_owned(), "cpu".to_owned(), "memory".to_owned()],
+            &["os".to_owned(), "cpu".to_owned(), "memory".to_owned()],
             &["bootstrap-text".to_owned()],
-            &[],
+            &[
+                ModuleEntry {
+                    key: "os",
+                    label: "OS",
+                    value: "Fedora Linux 43".to_owned(),
+                },
+                ModuleEntry {
+                    key: "cpu",
+                    label: "CPU",
+                    value: "ExampleCore 9000 (4 cores)".to_owned(),
+                },
+            ],
             0,
         );
 
