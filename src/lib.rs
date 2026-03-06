@@ -1,6 +1,7 @@
 pub mod app;
 pub mod cli;
 pub mod config;
+pub mod contracts;
 pub mod detectors;
 pub mod modules;
 pub mod render;

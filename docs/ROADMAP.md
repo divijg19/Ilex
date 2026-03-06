@@ -35,6 +35,7 @@ Rules for version increments:
 | `0.0.1` | Bootstrap | Compiling Rust scaffold with alias-aware entrypoint wiring |
 | `0.0.2` | First Pipeline | Typed snapshot with one real OS detection flow |
 | `0.0.3` | Hardening | Fixture-backed tests, CI checks, and timing hooks |
+| `0.0.4` | Contract Freeze | Documented interfaces and a readiness gate for 0.1.0 |
 | `0.1.0` | Foundations | Core architecture, CLI entrypoints, typed snapshot model |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
@@ -122,6 +123,32 @@ Exit criteria:
 - `cargo fmt --check`, `cargo test`, and `cargo build` pass locally and in CI.
 - `cargo run` prints timing lines in addition to the OS module output.
 - Fixture-backed tests cover both the happy path and a fallback parsing case.
+
+## `0.0.4` Contract Freeze
+
+Objective: freeze the bootstrap interfaces and make readiness for `0.1.0` explicit.
+
+Planned scope:
+
+- Document the detector, module, and renderer contracts as they exist at the end of `v0.0.x`.
+- Add a machine-visible bootstrap contract version.
+- Compute a readiness report from the live bootstrap pipeline.
+- Render readiness checks so the binary exposes whether the bootstrap gate is satisfied.
+- Verify the readiness gate in CI.
+
+Out of scope:
+
+- New detectors or renderers
+- Config file parsing
+- JSON output
+- Packaging or release automation
+- Expansion into CPU or memory detection
+
+Exit criteria:
+
+- The architecture contract is documented in the repository.
+- `cargo run` prints both the contract version and a readiness result.
+- CI verifies the primary entrypoint and readiness gate.
 
 ## `0.1.0` Foundations
 

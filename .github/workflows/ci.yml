@@ -32,3 +32,7 @@ jobs:
       - name: Verify primary entrypoint
         run: |
           cargo run --bin corefetch | grep -F "primary command: corefetch"
+
+      - name: Verify readiness gate
+        run: |
+          cargo run --bin corefetch | grep -F "foundation readiness: ready"
