@@ -30,6 +30,14 @@ impl BinaryAlias {
             Self::Unknown(name) => name.as_str(),
         }
     }
+
+    pub fn canonical_command(&self) -> &'static str {
+        "corefetch"
+    }
+
+    pub fn is_primary(&self) -> bool {
+        matches!(self, Self::Corefetch)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -64,6 +72,14 @@ impl Invocation {
         self.alias.as_str()
     }
 
+    pub fn canonical_command(&self) -> &'static str {
+        self.alias.canonical_command()
+    }
+
+    pub fn is_primary_entrypoint(&self) -> bool {
+        self.alias.is_primary()
+    }
+
     pub fn user_args(&self) -> &[String] {
         &self.raw_args
     }
@@ -83,9 +99,21 @@ mod tests {
 
     #[test]
     fn detects_known_aliases() {
+        assert_eq!(
+            BinaryAlias::from_program_name("corefetch").as_str(),
+            "corefetch"
+        );
         assert_eq!(BinaryAlias::from_program_name("core").as_str(), "core");
         assert_eq!(BinaryAlias::from_program_name("cf").as_str(), "cf");
         assert_eq!(BinaryAlias::from_program_name("ilex").as_str(), "ilex");
+    }
+
+    #[test]
+    fn preserves_corefetch_as_primary_command() {
+        let alias = BinaryAlias::from_program_name("corefetch");
+
+        assert!(alias.is_primary());
+        assert_eq!(alias.canonical_command(), "corefetch");
     }
 
     #[test]

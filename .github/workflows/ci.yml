@@ -1,0 +1,34 @@
+name: ci
+
+on:
+  push:
+    branches:
+      - main
+      - v0.0.x
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Build
+        run: cargo build
+
+      - name: Verify primary entrypoint
+        run: |
+          cargo run --bin corefetch | grep -F "primary command: corefetch"
