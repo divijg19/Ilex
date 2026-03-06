@@ -22,6 +22,9 @@ pub struct RenderView {
     pub module_entries: Vec<ModuleEntry>,
     pub timings: Vec<TimingEntry>,
     pub pipeline_duration: Duration,
+    pub contract_version: String,
+    pub ready_for_foundations: bool,
+    pub readiness_checks: Vec<ReadinessCheckView>,
     pub issues: Vec<String>,
 }
 
@@ -29,6 +32,13 @@ pub struct RenderView {
 pub struct TimingEntry {
     pub label: String,
     pub duration: Duration,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadinessCheckView {
+    pub key: String,
+    pub passed: bool,
+    pub detail: String,
 }
 
 pub struct BootstrapRenderer;
@@ -76,6 +86,26 @@ impl Renderer for BootstrapRenderer {
         }))
         .collect();
 
+        let readiness_lines: Vec<String> =
+            std::iter::once(format!("contract: {}", view.contract_version))
+                .chain(std::iter::once(format!(
+                    "foundation readiness: {}",
+                    if view.ready_for_foundations {
+                        "ready"
+                    } else {
+                        "blocked"
+                    }
+                )))
+                .chain(view.readiness_checks.iter().map(|check| {
+                    format!(
+                        "readiness: {}={} ({})",
+                        check.key,
+                        if check.passed { "pass" } else { "fail" },
+                        check.detail
+                    )
+                }))
+                .collect();
+
         let mut lines = vec![
             format!("corefetch {}", view.version),
             format!("binary: {}", view.binary_name),
@@ -92,7 +122,8 @@ impl Renderer for BootstrapRenderer {
         lines.extend(module_lines);
         lines.extend(issue_lines);
         lines.extend(timing_lines);
-        lines.push("status: v0.0.3 hardening baseline ready".to_owned());
+        lines.extend(readiness_lines);
+        lines.push("status: v0.0.4 contract freeze ready".to_owned());
         lines.join("\n")
     }
 }
@@ -109,14 +140,14 @@ fn format_duration(duration: Duration) -> String {
 mod tests {
     use std::time::Duration;
 
-    use super::{BootstrapRenderer, RenderView, Renderer, TimingEntry};
+    use super::{BootstrapRenderer, ReadinessCheckView, RenderView, Renderer, TimingEntry};
     use crate::modules::ModuleEntry;
 
     #[test]
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.0.3",
+            version: "0.0.4",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -136,6 +167,13 @@ mod tests {
                 duration: Duration::from_micros(120),
             }],
             pipeline_duration: Duration::from_micros(250),
+            contract_version: "bootstrap-v1".to_owned(),
+            ready_for_foundations: true,
+            readiness_checks: vec![ReadinessCheckView {
+                key: "snapshot-flow".to_owned(),
+                passed: true,
+                detail: "renderable module entries: 1".to_owned(),
+            }],
             issues: Vec::new(),
         };
 
@@ -145,7 +183,10 @@ mod tests {
         assert!(output.contains("timing: detector.os=120 us"));
         assert!(output.contains("primary command: corefetch"));
         assert!(output.contains("primary entrypoint: true"));
-        assert!(output.contains("status: v0.0.3 hardening baseline ready"));
+        assert!(output.contains("contract: bootstrap-v1"));
+        assert!(output.contains("foundation readiness: ready"));
+        assert!(output.contains("readiness: snapshot-flow=pass (renderable module entries: 1)"));
+        assert!(output.contains("status: v0.0.4 contract freeze ready"));
     }
 }
 
