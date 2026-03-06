@@ -1,0 +1,2 @@
+PRETTY_NAME="Unknown Linux"
+ID=unknown
