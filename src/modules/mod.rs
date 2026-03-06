@@ -1,4 +1,5 @@
 use crate::detectors::SystemSnapshot;
+use crate::formatting::{format_core_count, format_memory_usage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleEntry {
@@ -44,7 +45,11 @@ impl Module for CpuModule {
         snapshot.cpu.as_ref().map(|cpu| ModuleEntry {
             key: "cpu",
             label: "CPU",
-            value: format!("{} ({} cores)", cpu.model_name, cpu.logical_cores),
+            value: format!(
+                "{} ({})",
+                cpu.model_name,
+                format_core_count(cpu.logical_cores)
+            ),
         })
     }
 }
@@ -58,7 +63,7 @@ impl Module for MemoryModule {
         snapshot.memory.as_ref().map(|memory| ModuleEntry {
             key: "memory",
             label: "Memory",
-            value: format_memory(memory.total_kib, memory.used_kib()),
+            value: format_memory_usage(memory.total_kib, memory.used_kib()),
         })
     }
 }
@@ -88,18 +93,6 @@ impl ModuleRegistry {
             .filter_map(|module| module.collect(snapshot))
             .collect()
     }
-}
-
-fn format_memory(total_kib: u64, used_kib: Option<u64>) -> String {
-    let total_gib = kib_to_gib(total_kib);
-    match used_kib {
-        Some(used) => format!("{:.1} GiB / {:.1} GiB", kib_to_gib(used), total_gib),
-        None => format!("{:.1} GiB total", total_gib),
-    }
-}
-
-fn kib_to_gib(kib: u64) -> f64 {
-    kib as f64 / 1024.0 / 1024.0
 }
 
 #[cfg(test)]
