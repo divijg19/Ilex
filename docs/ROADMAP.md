@@ -37,6 +37,7 @@ Rules for version increments:
 | `0.0.3` | Hardening | Fixture-backed tests, CI checks, and timing hooks |
 | `0.0.4` | Contract Freeze | Documented interfaces and a readiness gate for 0.1.0 |
 | `0.1.0` | Foundations | Core architecture, CLI entrypoints, typed snapshot model |
+| `0.1.1` | Foundation Stabilization | CPU and memory parser fallback hardening |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
 | `0.4.0` | Stable Structured Output | Versioned JSON schema and config validation |
@@ -185,6 +186,8 @@ Implementation status:
 - `os`, `cpu`, and `memory` detectors are implemented for Linux.
 - Matching modules are rendered through the existing bootstrap-text renderer.
 - Foundation readiness is exposed at runtime through the `foundation-v1` contract.
+- CPU parsing includes fallback handling for non-x86 model keys and `cpu cores` fallback.
+- Memory parsing falls back from `MemAvailable` to `MemFree` when needed.
 
 ## `0.2.0` Baseline Fetch
 

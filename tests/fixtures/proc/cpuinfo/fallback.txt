@@ -1,0 +1,2 @@
+Hardware    : ARM Example SoC
+cpu cores   : 6
