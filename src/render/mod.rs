@@ -123,7 +123,7 @@ impl Renderer for BootstrapRenderer {
         lines.extend(issue_lines);
         lines.extend(timing_lines);
         lines.extend(readiness_lines);
-        lines.push("status: v0.0.4 contract freeze ready".to_owned());
+        lines.push("status: v0.1.0 foundations implemented".to_owned());
         lines.join("\n")
     }
 }
@@ -147,7 +147,7 @@ mod tests {
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.0.4",
+            version: "0.1.0",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -157,22 +157,34 @@ mod tests {
             detectors: vec!["os".to_owned()],
             modules: vec!["os".to_owned()],
             renderers: vec!["bootstrap-text".to_owned()],
-            module_entries: vec![ModuleEntry {
-                key: "os",
-                label: "OS",
-                value: "Fedora Linux 43".to_owned(),
-            }],
+            module_entries: vec![
+                ModuleEntry {
+                    key: "os",
+                    label: "OS",
+                    value: "Fedora Linux 43".to_owned(),
+                },
+                ModuleEntry {
+                    key: "cpu",
+                    label: "CPU",
+                    value: "ExampleCore 9000 (4 cores)".to_owned(),
+                },
+                ModuleEntry {
+                    key: "memory",
+                    label: "Memory",
+                    value: "7.8 GiB / 31.2 GiB".to_owned(),
+                },
+            ],
             timings: vec![TimingEntry {
                 label: "detector.os".to_owned(),
                 duration: Duration::from_micros(120),
             }],
             pipeline_duration: Duration::from_micros(250),
-            contract_version: "bootstrap-v1".to_owned(),
+            contract_version: "foundation-v1".to_owned(),
             ready_for_foundations: true,
             readiness_checks: vec![ReadinessCheckView {
                 key: "snapshot-flow".to_owned(),
                 passed: true,
-                detail: "renderable module entries: 1".to_owned(),
+                detail: "renderable module entries: 3".to_owned(),
             }],
             issues: Vec::new(),
         };
@@ -183,10 +195,12 @@ mod tests {
         assert!(output.contains("timing: detector.os=120 us"));
         assert!(output.contains("primary command: corefetch"));
         assert!(output.contains("primary entrypoint: true"));
-        assert!(output.contains("contract: bootstrap-v1"));
+        assert!(output.contains("contract: foundation-v1"));
         assert!(output.contains("foundation readiness: ready"));
-        assert!(output.contains("readiness: snapshot-flow=pass (renderable module entries: 1)"));
-        assert!(output.contains("status: v0.0.4 contract freeze ready"));
+        assert!(output.contains("readiness: snapshot-flow=pass (renderable module entries: 3)"));
+        assert!(output.contains("CPU: ExampleCore 9000 (4 cores)"));
+        assert!(output.contains("Memory: 7.8 GiB / 31.2 GiB"));
+        assert!(output.contains("status: v0.1.0 foundations implemented"));
     }
 }
 
