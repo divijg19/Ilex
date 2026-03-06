@@ -1,0 +1,15 @@
+[package]
+name = "corefetch"
+version = "0.0.1"
+edition = "2024"
+default-run = "corefetch"
+
+[lib]
+name = "corefetch"
+path = "src/lib.rs"
+
+[[bin]]
+name = "corefetch"
+path = "src/main.rs"
+
+[dependencies]
