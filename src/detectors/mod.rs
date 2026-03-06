@@ -310,21 +310,52 @@ fn parse_os_release(content: &str) -> Result<OsInfo, String> {
 }
 
 fn parse_cpu_info(content: &str) -> Result<CpuInfo, String> {
-    let logical_cores = content
-        .lines()
-        .filter(|line| line.trim_start().starts_with("processor"))
-        .count();
-    if logical_cores == 0 {
-        return Err("missing processor entries in cpuinfo".to_owned());
+    let mut logical_cores = 0usize;
+    let mut logical_cores_fallback: Option<usize> = None;
+    let mut model_name: Option<String> = None;
+
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = key.trim();
+        let value = value.trim();
+
+        if key == "processor" {
+            logical_cores += 1;
+        }
+
+        if model_name.is_none()
+            && matches!(key, "model name" | "Hardware" | "Processor")
+            && !value.is_empty()
+        {
+            model_name = Some(value.to_owned());
+        }
+
+        if logical_cores_fallback.is_none() && key == "cpu cores" {
+            if let Ok(parsed) = value.parse::<usize>() {
+                if parsed > 0 {
+                    logical_cores_fallback = Some(parsed);
+                }
+            }
+        }
     }
 
-    let model_name = content
-        .lines()
-        .find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            (key.trim() == "model name").then(|| value.trim().to_owned())
-        })
-        .ok_or_else(|| "missing model name in cpuinfo".to_owned())?;
+    let logical_cores = if logical_cores > 0 {
+        logical_cores
+    } else {
+        logical_cores_fallback.unwrap_or(0)
+    };
+    if logical_cores == 0 {
+        return Err("missing processor or cpu cores entries in cpuinfo".to_owned());
+    }
+
+    let model_name = model_name.ok_or_else(|| "missing model name in cpuinfo".to_owned())?;
 
     Ok(CpuInfo {
         model_name,
@@ -338,10 +369,14 @@ fn parse_meminfo(content: &str) -> Result<MemoryInfo, String> {
         .get("MemTotal")
         .copied()
         .ok_or_else(|| "missing MemTotal in meminfo".to_owned())?;
+    let available_kib = values
+        .get("MemAvailable")
+        .copied()
+        .or_else(|| values.get("MemFree").copied());
 
     Ok(MemoryInfo {
         total_kib,
-        available_kib: values.get("MemAvailable").copied(),
+        available_kib,
     })
 }
 
@@ -419,9 +454,12 @@ mod tests {
     const FEDORA_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/fedora.txt");
     const MINIMAL_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/minimal.txt");
     const CPUINFO: &str = include_str!("../../tests/fixtures/proc/cpuinfo/basic.txt");
+    const CPUINFO_FALLBACK: &str = include_str!("../../tests/fixtures/proc/cpuinfo/fallback.txt");
     const MEMINFO: &str = include_str!("../../tests/fixtures/proc/meminfo/basic.txt");
     const MEMINFO_NO_AVAILABLE: &str =
         include_str!("../../tests/fixtures/proc/meminfo/no-available.txt");
+    const MEMINFO_NO_AVAILABLE_NO_FREE: &str =
+        include_str!("../../tests/fixtures/proc/meminfo/no-available-no-free.txt");
 
     #[test]
     fn parses_pretty_name_from_os_release() {
@@ -467,6 +505,14 @@ mod tests {
     }
 
     #[test]
+    fn cpuinfo_falls_back_to_hardware_and_cpu_cores() {
+        let cpu = parse_cpu_info(CPUINFO_FALLBACK).expect("fallback cpuinfo should parse");
+
+        assert_eq!(cpu.model_name, "ARM Example SoC");
+        assert_eq!(cpu.logical_cores, 6);
+    }
+
+    #[test]
     fn cpu_detector_populates_snapshot_from_fixture() {
         let detector = CpuInfoDetector::new(proc_fixture_path("cpuinfo", "basic.txt"));
         let mut snapshot = SystemSnapshot::default();
@@ -488,8 +534,17 @@ mod tests {
     }
 
     #[test]
-    fn meminfo_allows_missing_available_value() {
+    fn meminfo_falls_back_to_memfree_when_available_is_missing() {
         let memory = parse_meminfo(MEMINFO_NO_AVAILABLE).expect("meminfo should parse");
+
+        assert_eq!(memory.total_kib, 16384000);
+        assert_eq!(memory.available_kib, Some(8192000));
+        assert_eq!(memory.used_kib(), Some(8192000));
+    }
+
+    #[test]
+    fn meminfo_without_available_or_free_keeps_used_unknown() {
+        let memory = parse_meminfo(MEMINFO_NO_AVAILABLE_NO_FREE).expect("meminfo should parse");
 
         assert_eq!(memory.total_kib, 16384000);
         assert_eq!(memory.available_kib, None);
@@ -562,7 +617,9 @@ mod tests {
         assert!(fs::metadata(fixture_path("fedora.txt")).is_ok());
         assert!(fs::metadata(fixture_path("minimal.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("cpuinfo", "basic.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("cpuinfo", "fallback.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "basic.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "no-available.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("meminfo", "no-available-no-free.txt")).is_ok());
     }
 }

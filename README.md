@@ -235,14 +235,21 @@ bar = true
 
 ## Status
 
-Early design phase.
+Active implementation phase.
 
-Initial work focuses on:
+Current release status:
 
-* system detection primitives
-* modular architecture
-* CLI ergonomics
-* baseline Linux hardware detection
+- Current version: `0.1.1`
+- Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
+- Implemented Linux detectors: `os`, `cpu`, `memory`
+- Implemented module pipeline: detector -> module -> renderer
+- Foundation contract and readiness gate: `foundation-v1`
+- CI checks include format, tests, build, primary entrypoint, and readiness verification
+
+Near-term focus:
+
+- `0.1.x` stabilization (parser hardening, test coverage, output consistency)
+- `0.2.0` baseline fetch expansion (`disk`, `shell`, `terminal`, minimal and JSON modes)
 
 ---
 

@@ -123,7 +123,10 @@ impl Renderer for BootstrapRenderer {
         lines.extend(issue_lines);
         lines.extend(timing_lines);
         lines.extend(readiness_lines);
-        lines.push("status: v0.1.0 foundations implemented".to_owned());
+        lines.push(format!(
+            "status: v{} foundation stabilization active",
+            view.version
+        ));
         lines.join("\n")
     }
 }
@@ -147,7 +150,7 @@ mod tests {
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.1.0",
+            version: "0.1.1",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -200,7 +203,7 @@ mod tests {
         assert!(output.contains("readiness: snapshot-flow=pass (renderable module entries: 3)"));
         assert!(output.contains("CPU: ExampleCore 9000 (4 cores)"));
         assert!(output.contains("Memory: 7.8 GiB / 31.2 GiB"));
-        assert!(output.contains("status: v0.1.0 foundations implemented"));
+        assert!(output.contains("status: v0.1.1 foundation stabilization active"));
     }
 }
 
