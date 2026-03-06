@@ -1,8 +1,11 @@
-use std::collections::BTreeMap;
 use std::fmt;
 use std::fs;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
+
+mod parsers;
+
+use self::parsers::{parse_cpu_info, parse_meminfo, parse_os_release};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemSnapshot {
@@ -290,148 +293,6 @@ impl DetectorRegistry {
     }
 }
 
-fn parse_os_release(content: &str) -> Result<OsInfo, String> {
-    let values = parse_key_value_lines(content);
-    let name = values
-        .get("NAME")
-        .cloned()
-        .ok_or_else(|| "missing NAME in os-release".to_owned())?;
-    let pretty_name = values
-        .get("PRETTY_NAME")
-        .cloned()
-        .unwrap_or_else(|| name.clone());
-
-    Ok(OsInfo {
-        name,
-        pretty_name,
-        id: values.get("ID").cloned(),
-        version_id: values.get("VERSION_ID").cloned(),
-    })
-}
-
-fn parse_cpu_info(content: &str) -> Result<CpuInfo, String> {
-    let mut logical_cores = 0usize;
-    let mut logical_cores_fallback: Option<usize> = None;
-    let mut model_name: Option<String> = None;
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let Some((key, value)) = line.split_once(':') else {
-            continue;
-        };
-        let key = key.trim();
-        let value = value.trim();
-
-        if key == "processor" {
-            logical_cores += 1;
-        }
-
-        if model_name.is_none()
-            && matches!(key, "model name" | "Hardware" | "Processor")
-            && !value.is_empty()
-        {
-            model_name = Some(value.to_owned());
-        }
-
-        if logical_cores_fallback.is_none() && key == "cpu cores" {
-            if let Ok(parsed) = value.parse::<usize>() {
-                if parsed > 0 {
-                    logical_cores_fallback = Some(parsed);
-                }
-            }
-        }
-    }
-
-    let logical_cores = if logical_cores > 0 {
-        logical_cores
-    } else {
-        logical_cores_fallback.unwrap_or(0)
-    };
-    if logical_cores == 0 {
-        return Err("missing processor or cpu cores entries in cpuinfo".to_owned());
-    }
-
-    let model_name = model_name.ok_or_else(|| "missing model name in cpuinfo".to_owned())?;
-
-    Ok(CpuInfo {
-        model_name,
-        logical_cores,
-    })
-}
-
-fn parse_meminfo(content: &str) -> Result<MemoryInfo, String> {
-    let values = parse_proc_value_lines(content)?;
-    let total_kib = values
-        .get("MemTotal")
-        .copied()
-        .ok_or_else(|| "missing MemTotal in meminfo".to_owned())?;
-    let available_kib = values
-        .get("MemAvailable")
-        .copied()
-        .or_else(|| values.get("MemFree").copied());
-
-    Ok(MemoryInfo {
-        total_kib,
-        available_kib,
-    })
-}
-
-fn parse_key_value_lines(content: &str) -> BTreeMap<String, String> {
-    let mut values = BTreeMap::new();
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        let Some((key, value)) = line.split_once('=') else {
-            continue;
-        };
-
-        values.insert(key.to_owned(), normalize_value(value));
-    }
-
-    values
-}
-
-fn parse_proc_value_lines(content: &str) -> Result<BTreeMap<String, u64>, String> {
-    let mut values = BTreeMap::new();
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-
-        let Some((key, value)) = line.split_once(':') else {
-            continue;
-        };
-        let numeric = value
-            .split_whitespace()
-            .next()
-            .ok_or_else(|| format!("missing numeric value for {key}"))?
-            .parse::<u64>()
-            .map_err(|error| format!("invalid numeric value for {key}: {error}"))?;
-
-        values.insert(key.trim().to_owned(), numeric);
-    }
-
-    Ok(values)
-}
-
-fn normalize_value(value: &str) -> String {
-    value
-        .trim()
-        .trim_matches('"')
-        .replace(r#"\""#, "\"")
-        .replace(r#"\\"#, "\\")
-}
-
 fn map_parse_error(detector_key: &'static str, message: String) -> DetectionError {
     if message.starts_with("missing ") {
         DetectionError::missing_field(detector_key, message)
@@ -453,13 +314,23 @@ mod tests {
 
     const FEDORA_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/fedora.txt");
     const MINIMAL_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/minimal.txt");
+    const OS_RELEASE_MISSING_NAME: &str =
+        include_str!("../../tests/fixtures/os-release/missing-name.txt");
     const CPUINFO: &str = include_str!("../../tests/fixtures/proc/cpuinfo/basic.txt");
     const CPUINFO_FALLBACK: &str = include_str!("../../tests/fixtures/proc/cpuinfo/fallback.txt");
+    const CPUINFO_MISSING_MODEL: &str =
+        include_str!("../../tests/fixtures/proc/cpuinfo/missing-model.txt");
+    const CPUINFO_MISSING_CORES: &str =
+        include_str!("../../tests/fixtures/proc/cpuinfo/missing-cores.txt");
     const MEMINFO: &str = include_str!("../../tests/fixtures/proc/meminfo/basic.txt");
     const MEMINFO_NO_AVAILABLE: &str =
         include_str!("../../tests/fixtures/proc/meminfo/no-available.txt");
     const MEMINFO_NO_AVAILABLE_NO_FREE: &str =
         include_str!("../../tests/fixtures/proc/meminfo/no-available-no-free.txt");
+    const MEMINFO_INVALID_TOTAL: &str =
+        include_str!("../../tests/fixtures/proc/meminfo/invalid-total.txt");
+    const MEMINFO_MISSING_TOTAL: &str =
+        include_str!("../../tests/fixtures/proc/meminfo/missing-total.txt");
 
     #[test]
     fn parses_pretty_name_from_os_release() {
@@ -479,6 +350,14 @@ mod tests {
         assert_eq!(os.pretty_name, "Tiny Linux");
         assert_eq!(os.id.as_deref(), Some("tiny"));
         assert_eq!(os.version_id.as_deref(), None);
+    }
+
+    #[test]
+    fn os_release_without_name_reports_missing_field() {
+        let error =
+            parse_os_release(OS_RELEASE_MISSING_NAME).expect_err("missing NAME should fail");
+
+        assert!(error.contains("missing NAME"));
     }
 
     #[test]
@@ -510,6 +389,21 @@ mod tests {
 
         assert_eq!(cpu.model_name, "ARM Example SoC");
         assert_eq!(cpu.logical_cores, 6);
+    }
+
+    #[test]
+    fn cpuinfo_without_model_reports_missing_field() {
+        let error = parse_cpu_info(CPUINFO_MISSING_MODEL).expect_err("missing model should fail");
+
+        assert!(error.contains("missing model name"));
+    }
+
+    #[test]
+    fn cpuinfo_without_core_data_reports_missing_field() {
+        let error =
+            parse_cpu_info(CPUINFO_MISSING_CORES).expect_err("missing core data should fail");
+
+        assert!(error.contains("missing processor or cpu cores"));
     }
 
     #[test]
@@ -549,6 +443,20 @@ mod tests {
         assert_eq!(memory.total_kib, 16384000);
         assert_eq!(memory.available_kib, None);
         assert_eq!(memory.used_kib(), None);
+    }
+
+    #[test]
+    fn meminfo_with_invalid_total_reports_parse_error() {
+        let error = parse_meminfo(MEMINFO_INVALID_TOTAL).expect_err("invalid total should fail");
+
+        assert!(error.contains("invalid numeric value for MemTotal"));
+    }
+
+    #[test]
+    fn meminfo_without_total_reports_missing_field() {
+        let error = parse_meminfo(MEMINFO_MISSING_TOTAL).expect_err("missing total should fail");
+
+        assert!(error.contains("missing MemTotal"));
     }
 
     #[test]
@@ -595,6 +503,30 @@ mod tests {
         assert!(report.total_detection_time >= report.timings[0].elapsed);
     }
 
+    #[test]
+    fn detector_error_kind_is_missing_field_for_missing_os_name() {
+        let detector = OsReleaseDetector::new(fixture_path("missing-name.txt"));
+        let mut snapshot = SystemSnapshot::default();
+
+        let error = detector
+            .detect(&mut snapshot)
+            .expect_err("missing name should fail");
+
+        assert_eq!(error.kind, DetectionErrorKind::MissingField);
+    }
+
+    #[test]
+    fn detector_error_kind_is_parse_for_invalid_memtotal() {
+        let detector = MemoryInfoDetector::new(proc_fixture_path("meminfo", "invalid-total.txt"));
+        let mut snapshot = SystemSnapshot::default();
+
+        let error = detector
+            .detect(&mut snapshot)
+            .expect_err("invalid total should fail");
+
+        assert_eq!(error.kind, DetectionErrorKind::Parse);
+    }
+
     fn fixture_path(name: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
@@ -616,10 +548,15 @@ mod tests {
     fn fixture_files_exist() {
         assert!(fs::metadata(fixture_path("fedora.txt")).is_ok());
         assert!(fs::metadata(fixture_path("minimal.txt")).is_ok());
+        assert!(fs::metadata(fixture_path("missing-name.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("cpuinfo", "basic.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("cpuinfo", "fallback.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("cpuinfo", "missing-model.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("cpuinfo", "missing-cores.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "basic.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "no-available.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "no-available-no-free.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("meminfo", "invalid-total.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("meminfo", "missing-total.txt")).is_ok());
     }
 }

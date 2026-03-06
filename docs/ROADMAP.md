@@ -39,6 +39,7 @@ Rules for version increments:
 | `0.1.0` | Foundations | Core architecture, CLI entrypoints, typed snapshot model |
 | `0.1.1` | Foundation Stabilization | CPU and memory parser fallback hardening |
 | `0.1.2` | Output Consistency | Shared formatting utilities for module output |
+| `0.1.3` | Parser Hardening | Split parser module and malformed fixture coverage |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
 | `0.4.0` | Stable Structured Output | Versioned JSON schema and config validation |
@@ -190,6 +191,8 @@ Implementation status:
 - CPU parsing includes fallback handling for non-x86 model keys and `cpu cores` fallback.
 - Memory parsing falls back from `MemAvailable` to `MemFree` when needed.
 - Module output formatting now uses shared utilities for memory and core-count display.
+- Detector parser logic is separated into a dedicated parser submodule.
+- Malformed fixture coverage now asserts missing-field vs parse error behavior.
 
 ## `0.2.0` Baseline Fetch
 

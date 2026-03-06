@@ -239,12 +239,13 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.1.2`
+- Current version: `0.1.3`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
 - Implemented Linux detectors: `os`, `cpu`, `memory`
 - Implemented module pipeline: detector -> module -> renderer
 - Foundation contract and readiness gate: `foundation-v1`
 - Shared module formatting utilities are now in place for core-count and memory display
+- Detector parsing is split into a dedicated submodule with malformed-input fixture coverage
 - CI checks include format, tests, build, primary entrypoint, and readiness verification
 
 Near-term focus:
