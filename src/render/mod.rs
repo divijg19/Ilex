@@ -1,3 +1,5 @@
+use crate::modules::ModuleEntry;
+
 pub trait Renderer {
     fn key(&self) -> &'static str;
     fn render(&self, view: &RenderView) -> String;
@@ -13,6 +15,8 @@ pub struct RenderView {
     pub detectors: Vec<String>,
     pub modules: Vec<String>,
     pub renderers: Vec<String>,
+    pub module_entries: Vec<ModuleEntry>,
+    pub issues: Vec<String>,
 }
 
 pub struct BootstrapRenderer;
@@ -29,7 +33,25 @@ impl Renderer for BootstrapRenderer {
             view.raw_args.join(" ")
         };
 
-        [
+        let module_lines: Vec<String> = if view.module_entries.is_empty() {
+            vec!["module output: <none>".to_owned()]
+        } else {
+            view.module_entries
+                .iter()
+                .map(|entry| format!("{}: {}", entry.label, entry.value))
+                .collect()
+        };
+
+        let issue_lines: Vec<String> = if view.issues.is_empty() {
+            vec!["issues: <none>".to_owned()]
+        } else {
+            view.issues
+                .iter()
+                .map(|issue| format!("issue: {issue}"))
+                .collect()
+        };
+
+        let mut lines = vec![
             format!("corefetch {}", view.version),
             format!("binary: {}", view.binary_name),
             format!("alias: {}", view.alias),
@@ -38,9 +60,12 @@ impl Renderer for BootstrapRenderer {
             format!("detectors: {}", view.detectors.join(", ")),
             format!("modules: {}", view.modules.join(", ")),
             format!("renderers: {}", view.renderers.join(", ")),
-            "status: v0.0.1 bootstrap scaffold ready".to_owned(),
-        ]
-        .join("\n")
+        ];
+
+        lines.extend(module_lines);
+        lines.extend(issue_lines);
+        lines.push("status: v0.0.2 os detection pipeline ready".to_owned());
+        lines.join("\n")
     }
 }
 

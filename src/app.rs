@@ -27,6 +27,8 @@ impl App {
     }
 
     pub fn run(&self) -> String {
+        let detection = self.detectors.detect_all();
+        let module_entries = self.modules.collect(&detection.snapshot);
         let view = RenderView {
             version: VERSION,
             binary_name: self.invocation.binary_name().to_owned(),
@@ -50,6 +52,12 @@ impl App {
                 .keys()
                 .iter()
                 .map(ToString::to_string)
+                .collect(),
+            module_entries,
+            issues: detection
+                .issues
+                .iter()
+                .map(|issue| format!("{}: {}", issue.detector_key, issue.message))
                 .collect(),
         };
 

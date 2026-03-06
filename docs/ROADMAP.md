@@ -33,6 +33,7 @@ Rules for version increments:
 | Version | Theme | Primary Outcome |
 | --- | --- | --- |
 | `0.0.1` | Bootstrap | Compiling Rust scaffold with alias-aware entrypoint wiring |
+| `0.0.2` | First Pipeline | Typed snapshot with one real OS detection flow |
 | `0.1.0` | Foundations | Core architecture, CLI entrypoints, typed snapshot model |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
@@ -68,6 +69,32 @@ Exit criteria:
 - `cargo build` succeeds.
 - Running the binary prints bootstrap metadata instead of panicking.
 - Invoking the binary through alias symlinks reports the alias name correctly.
+
+## `0.0.2` First Pipeline
+
+Objective: replace the placeholder detection path with one real typed detector to module to renderer flow.
+
+Planned scope:
+
+- Add the initial typed system snapshot model.
+- Implement Linux OS detection using `/etc/os-release`.
+- Add an OS module that formats the detected operating system value.
+- Render real module output from the snapshot instead of placeholder-only metadata.
+- Add unit tests for OS release parsing and module consumption.
+
+Out of scope:
+
+- CPU and memory detection
+- Config file parsing
+- JSON output
+- Performance instrumentation
+- CI and packaging
+
+Exit criteria:
+
+- `cargo test` passes with detector and module tests.
+- `cargo run` prints a real OS line from the detected snapshot.
+- The binary still reports the invocation alias correctly.
 
 ## `0.1.0` Foundations
 
