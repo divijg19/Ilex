@@ -34,6 +34,7 @@ Rules for version increments:
 | --- | --- | --- |
 | `0.0.1` | Bootstrap | Compiling Rust scaffold with alias-aware entrypoint wiring |
 | `0.0.2` | First Pipeline | Typed snapshot with one real OS detection flow |
+| `0.0.3` | Hardening | Fixture-backed tests, CI checks, and timing hooks |
 | `0.1.0` | Foundations | Core architecture, CLI entrypoints, typed snapshot model |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
@@ -95,6 +96,32 @@ Exit criteria:
 - `cargo test` passes with detector and module tests.
 - `cargo run` prints a real OS line from the detected snapshot.
 - The binary still reports the invocation alias correctly.
+
+## `0.0.3` Hardening
+
+Objective: harden the first real pipeline with fixture-driven tests, CI checks, and basic timing visibility.
+
+Planned scope:
+
+- Add fixture files for os-release parsing coverage.
+- Expand detector tests to validate fixture parsing, fallback behavior, and failure reporting.
+- Record total detection timing and per-detector timing.
+- Render timing information to make the baseline measurable during development.
+- Add a CI workflow that runs formatting, tests, and build checks.
+
+Out of scope:
+
+- New user-facing detectors
+- Config file parsing
+- JSON output
+- Release packaging
+- Benchmark comparison infrastructure
+
+Exit criteria:
+
+- `cargo fmt --check`, `cargo test`, and `cargo build` pass locally and in CI.
+- `cargo run` prints timing lines in addition to the OS module output.
+- Fixture-backed tests cover both the happy path and a fallback parsing case.
 
 ## `0.1.0` Foundations
 

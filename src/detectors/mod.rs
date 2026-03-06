@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemSnapshot {
@@ -25,6 +26,14 @@ pub struct DetectionIssue {
 pub struct DetectionReport {
     pub snapshot: SystemSnapshot,
     pub issues: Vec<DetectionIssue>,
+    pub timings: Vec<DetectorTiming>,
+    pub total_detection_time: Duration,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DetectorTiming {
+    pub detector_key: &'static str,
+    pub elapsed: Duration,
 }
 
 pub trait Detector {
@@ -84,11 +93,22 @@ impl DetectorRegistry {
     }
 
     pub fn detect_all(&self) -> DetectionReport {
+        let started_at = Instant::now();
         let mut snapshot = SystemSnapshot::default();
         let mut issues = Vec::new();
+        let mut timings = Vec::new();
 
         for detector in &self.detectors {
-            if let Err(message) = detector.detect(&mut snapshot) {
+            let detector_started_at = Instant::now();
+            let result = detector.detect(&mut snapshot);
+            let elapsed = detector_started_at.elapsed();
+
+            timings.push(DetectorTiming {
+                detector_key: detector.key(),
+                elapsed,
+            });
+
+            if let Err(message) = result {
                 issues.push(DetectionIssue {
                     detector_key: detector.key(),
                     message,
@@ -96,7 +116,12 @@ impl DetectorRegistry {
             }
         }
 
-        DetectionReport { snapshot, issues }
+        DetectionReport {
+            snapshot,
+            issues,
+            timings,
+            total_detection_time: started_at.elapsed(),
+        }
     }
 }
 
@@ -148,22 +173,18 @@ fn normalize_value(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
     use std::path::PathBuf;
 
     use super::{OsReleaseDetector, SystemSnapshot, parse_os_release};
     use crate::detectors::Detector;
 
+    const FEDORA_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/fedora.txt");
+    const MINIMAL_OS_RELEASE: &str = include_str!("../../tests/fixtures/os-release/minimal.txt");
+
     #[test]
     fn parses_pretty_name_from_os_release() {
-        let os = parse_os_release(
-            r#"
-NAME="Fedora Linux"
-PRETTY_NAME="Fedora Linux 43"
-ID=fedora
-VERSION_ID=43
-"#,
-        )
-        .expect("os-release should parse");
+        let os = parse_os_release(FEDORA_OS_RELEASE).expect("os-release should parse");
 
         assert_eq!(os.name, "Fedora Linux");
         assert_eq!(os.pretty_name, "Fedora Linux 43");
@@ -172,16 +193,18 @@ VERSION_ID=43
     }
 
     #[test]
-    fn detector_populates_snapshot() {
-        let temp_dir = std::env::temp_dir();
-        let file_path = temp_dir.join("corefetch-os-release-test");
-        std::fs::write(
-            &file_path,
-            "NAME=TestOS\nPRETTY_NAME=TestOS 1\nID=test\nVERSION_ID=1\n",
-        )
-        .expect("test fixture should be written");
+    fn falls_back_to_name_when_pretty_name_missing() {
+        let os = parse_os_release(MINIMAL_OS_RELEASE).expect("minimal os-release should parse");
 
-        let detector = OsReleaseDetector::new(PathBuf::from(&file_path));
+        assert_eq!(os.name, "Tiny Linux");
+        assert_eq!(os.pretty_name, "Tiny Linux");
+        assert_eq!(os.id.as_deref(), Some("tiny"));
+        assert_eq!(os.version_id.as_deref(), None);
+    }
+
+    #[test]
+    fn detector_populates_snapshot_from_fixture() {
+        let detector = OsReleaseDetector::new(fixture_path("fedora.txt"));
         let mut snapshot = SystemSnapshot::default();
 
         detector
@@ -190,9 +213,46 @@ VERSION_ID=43
 
         assert_eq!(
             snapshot.os.as_ref().map(|os| os.pretty_name.as_str()),
-            Some("TestOS 1")
+            Some("Fedora Linux 43")
         );
+    }
 
-        std::fs::remove_file(file_path).expect("test fixture should be removed");
+    #[test]
+    fn detect_all_records_timings_and_issues() {
+        struct FailingDetector;
+
+        impl Detector for FailingDetector {
+            fn key(&self) -> &'static str {
+                "failing"
+            }
+
+            fn detect(&self, _snapshot: &mut SystemSnapshot) -> Result<(), String> {
+                Err("intentional failure".to_owned())
+            }
+        }
+
+        let registry = super::DetectorRegistry {
+            detectors: vec![Box::new(FailingDetector)],
+        };
+        let report = registry.detect_all();
+
+        assert_eq!(report.issues.len(), 1);
+        assert_eq!(report.timings.len(), 1);
+        assert_eq!(report.timings[0].detector_key, "failing");
+        assert!(report.total_detection_time >= report.timings[0].elapsed);
+    }
+
+    fn fixture_path(name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("os-release")
+            .join(name)
+    }
+
+    #[test]
+    fn fixture_files_exist() {
+        assert!(fs::metadata(fixture_path("fedora.txt")).is_ok());
+        assert!(fs::metadata(fixture_path("minimal.txt")).is_ok());
     }
 }

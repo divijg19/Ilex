@@ -1,0 +1,4 @@
+NAME="Fedora Linux"
+PRETTY_NAME="Fedora Linux 43"
+ID=fedora
+VERSION_ID=43

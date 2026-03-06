@@ -32,15 +32,22 @@ The goal is not only to replicate existing fetch tools but to **expand what a fe
 
 | Command | Description |
 |-------|-------------|
-| `core` | primary CLI command |
+| `corefetch` | primary CLI command |
+| `core` | short alias |
 | `cf` | minimal shorthand |
 | `ilex` | internal codename alias |
+
+`corefetch` remains the canonical entrypoint. `core`, `cf`, and `ilex` are aliases only.
 
 Example usage:
 
 ```bash
+corefetch
+```
+
+```bash
 core
-````
+```
 
 ```bash
 cf
