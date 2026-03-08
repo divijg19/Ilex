@@ -26,6 +26,7 @@ pub struct RenderView {
     pub pipeline_duration: Duration,
     pub foundation_readiness: ReadinessView,
     pub baseline_readiness: ReadinessView,
+    pub environment_readiness: ReadinessView,
     pub issues: Vec<String>,
 }
 
@@ -126,6 +127,7 @@ impl Renderer for JsonRenderer {
             "contracts": [
                 readiness_to_json("foundation", &view.foundation_readiness),
                 readiness_to_json("baseline", &view.baseline_readiness),
+                readiness_to_json("environment", &view.environment_readiness),
             ],
         });
 
@@ -222,6 +224,28 @@ impl Renderer for BootstrapRenderer {
         }))
         .collect();
 
+        let environment_lines: Vec<String> = std::iter::once(format!(
+            "contract: {}",
+            view.environment_readiness.contract_version
+        ))
+        .chain(std::iter::once(format!(
+            "environment readiness: {}",
+            if view.environment_readiness.ready {
+                "ready"
+            } else {
+                "blocked"
+            }
+        )))
+        .chain(view.environment_readiness.checks.iter().map(|check| {
+            format!(
+                "environment check: {}={} ({})",
+                check.key,
+                if check.passed { "pass" } else { "fail" },
+                check.detail
+            )
+        }))
+        .collect();
+
         let mut lines = vec![
             format!("corefetch {}", view.version),
             format!("binary: {}", view.binary_name),
@@ -240,7 +264,11 @@ impl Renderer for BootstrapRenderer {
         lines.extend(timing_lines);
         lines.extend(foundation_lines);
         lines.extend(baseline_lines);
-        lines.push(format!("status: v{} baseline fetch active", view.version));
+        lines.extend(environment_lines);
+        lines.push(format!(
+            "status: v{} environment context active",
+            view.version
+        ));
         lines.join("\n")
     }
 }
@@ -300,7 +328,7 @@ mod tests {
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.2.0",
+            version: "0.2.1",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -331,6 +359,16 @@ mod tests {
                     label: "Disk",
                     value: "31.2 GiB / 62.5 GiB (/)".to_owned(),
                 },
+                ModuleEntry {
+                    key: "shell",
+                    label: "Shell",
+                    value: "fish".to_owned(),
+                },
+                ModuleEntry {
+                    key: "terminal",
+                    label: "Terminal",
+                    value: "Ghostty (xterm-256color)".to_owned(),
+                },
             ],
             timings: vec![TimingEntry {
                 label: "detector.os".to_owned(),
@@ -343,7 +381,7 @@ mod tests {
                 checks: vec![ReadinessCheckView {
                     key: "snapshot-flow".to_owned(),
                     passed: true,
-                    detail: "renderable module entries: 4".to_owned(),
+                    detail: "renderable module entries: 6".to_owned(),
                 }],
             },
             baseline_readiness: ReadinessView {
@@ -352,7 +390,16 @@ mod tests {
                 checks: vec![ReadinessCheckView {
                     key: "snapshot-flow".to_owned(),
                     passed: true,
-                    detail: "renderable module entries: 4".to_owned(),
+                    detail: "renderable module entries: 6".to_owned(),
+                }],
+            },
+            environment_readiness: ReadinessView {
+                contract_version: "environment-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 6".to_owned(),
                 }],
             },
             issues: Vec::new(),
@@ -368,16 +415,23 @@ mod tests {
         assert!(output.contains("foundation readiness: ready"));
         assert!(output.contains("contract: baseline-v1"));
         assert!(output.contains("baseline readiness: ready"));
+        assert!(output.contains("contract: environment-v1"));
+        assert!(output.contains("environment readiness: ready"));
         assert!(
-            output.contains("foundation check: snapshot-flow=pass (renderable module entries: 4)")
+            output.contains("foundation check: snapshot-flow=pass (renderable module entries: 6)")
         );
         assert!(
-            output.contains("baseline check: snapshot-flow=pass (renderable module entries: 4)")
+            output.contains("baseline check: snapshot-flow=pass (renderable module entries: 6)")
+        );
+        assert!(
+            output.contains("environment check: snapshot-flow=pass (renderable module entries: 6)")
         );
         assert!(output.contains("CPU: ExampleCore 9000 (4 cores)"));
         assert!(output.contains("Memory: 7.8 GiB / 31.2 GiB"));
         assert!(output.contains("Disk: 31.2 GiB / 62.5 GiB (/)"));
-        assert!(output.contains("status: v0.2.0 baseline fetch active"));
+        assert!(output.contains("Shell: fish"));
+        assert!(output.contains("Terminal: Ghostty (xterm-256color)"));
+        assert!(output.contains("status: v0.2.1 environment context active"));
     }
 
     #[test]
@@ -407,12 +461,19 @@ mod tests {
         assert_eq!(parsed["program"], "corefetch");
         assert_eq!(parsed["contracts"][0]["contract_version"], "foundation-v1");
         assert_eq!(parsed["contracts"][1]["contract_version"], "baseline-v1");
-        assert_eq!(parsed["modules"][3]["key"], "disk");
+        assert_eq!(parsed["contracts"][2]["contract_version"], "environment-v1");
+        assert!(
+            parsed["modules"]
+                .as_array()
+                .expect("modules should be an array")
+                .iter()
+                .any(|module| module["key"] == "terminal")
+        );
     }
 
     fn sample_view() -> RenderView {
         RenderView {
-            version: "0.2.0",
+            version: "0.2.1",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -424,12 +485,16 @@ mod tests {
                 "cpu".to_owned(),
                 "memory".to_owned(),
                 "disk".to_owned(),
+                "shell".to_owned(),
+                "terminal".to_owned(),
             ],
             modules: vec![
                 "os".to_owned(),
                 "cpu".to_owned(),
                 "memory".to_owned(),
                 "disk".to_owned(),
+                "shell".to_owned(),
+                "terminal".to_owned(),
             ],
             renderers: vec![
                 "bootstrap-text".to_owned(),
@@ -458,6 +523,16 @@ mod tests {
                     label: "Disk",
                     value: "31.2 GiB / 62.5 GiB (/)".to_owned(),
                 },
+                ModuleEntry {
+                    key: "shell",
+                    label: "Shell",
+                    value: "fish".to_owned(),
+                },
+                ModuleEntry {
+                    key: "terminal",
+                    label: "Terminal",
+                    value: "Ghostty (xterm-256color)".to_owned(),
+                },
             ],
             timings: vec![TimingEntry {
                 label: "detector.os".to_owned(),
@@ -470,7 +545,7 @@ mod tests {
                 checks: vec![ReadinessCheckView {
                     key: "snapshot-flow".to_owned(),
                     passed: true,
-                    detail: "renderable module entries: 4".to_owned(),
+                    detail: "renderable module entries: 6".to_owned(),
                 }],
             },
             baseline_readiness: ReadinessView {
@@ -479,7 +554,16 @@ mod tests {
                 checks: vec![ReadinessCheckView {
                     key: "snapshot-flow".to_owned(),
                     passed: true,
-                    detail: "renderable module entries: 4".to_owned(),
+                    detail: "renderable module entries: 6".to_owned(),
+                }],
+            },
+            environment_readiness: ReadinessView {
+                contract_version: "environment-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 6".to_owned(),
                 }],
             },
             issues: Vec::new(),

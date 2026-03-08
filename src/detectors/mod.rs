@@ -6,11 +6,15 @@ mod disk;
 mod memory;
 mod os;
 mod parsers;
+mod shell;
+mod terminal;
 
 pub use self::cpu::CpuInfoDetector;
 pub use self::disk::DiskDetector;
 pub use self::memory::MemoryInfoDetector;
 pub use self::os::OsReleaseDetector;
+pub use self::shell::ShellDetector;
+pub use self::terminal::TerminalDetector;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemSnapshot {
@@ -18,6 +22,8 @@ pub struct SystemSnapshot {
     pub cpu: Option<CpuInfo>,
     pub memory: Option<MemoryInfo>,
     pub disk: Option<DiskInfo>,
+    pub shell: Option<ShellInfo>,
+    pub terminal: Option<TerminalInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,6 +67,19 @@ impl DiskInfo {
         self.available_kib
             .map(|available| self.total_kib.saturating_sub(available))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellInfo {
+    pub executable_path: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalInfo {
+    pub name: String,
+    pub term: Option<String>,
+    pub color_term: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +183,8 @@ impl DetectorRegistry {
                 Box::new(CpuInfoDetector::default()),
                 Box::new(MemoryInfoDetector::default()),
                 Box::new(DiskDetector::default()),
+                Box::new(ShellDetector::default()),
+                Box::new(TerminalDetector::default()),
             ],
         }
     }
@@ -222,10 +243,13 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::parsers::{parse_cpu_info, parse_meminfo, parse_os_release, parse_primary_mount};
+    use super::parsers::{
+        parse_cpu_info, parse_meminfo, parse_os_release, parse_passwd_shell, parse_primary_mount,
+        parse_terminal_info,
+    };
     use super::{
         CpuInfoDetector, DetectionErrorKind, DiskDetector, MemoryInfoDetector, OsReleaseDetector,
-        SystemSnapshot,
+        ShellDetector, SystemSnapshot, TerminalDetector,
     };
     use crate::detectors::Detector;
 
@@ -250,6 +274,8 @@ mod tests {
         include_str!("../../tests/fixtures/proc/meminfo/missing-total.txt");
     const MOUNTS_BASIC: &str = include_str!("../../tests/fixtures/proc/mounts/basic.txt");
     const MOUNTS_NO_ROOT: &str = include_str!("../../tests/fixtures/proc/mounts/no-root.txt");
+    const PASSWD_BASIC: &str = include_str!("../../tests/fixtures/etc/passwd/basic.txt");
+    const PASSWD_NO_MATCH: &str = include_str!("../../tests/fixtures/etc/passwd/no-match.txt");
 
     #[test]
     fn parses_pretty_name_from_os_release() {
@@ -425,6 +451,105 @@ mod tests {
     }
 
     #[test]
+    fn parses_shell_from_passwd_fixture() {
+        let shell = parse_passwd_shell(PASSWD_BASIC, 1000).expect("passwd should parse");
+
+        assert_eq!(shell, "/usr/bin/fish");
+    }
+
+    #[test]
+    fn passwd_without_matching_uid_reports_missing_field() {
+        let error = parse_passwd_shell(PASSWD_NO_MATCH, 1000).expect_err("missing uid should fail");
+
+        assert!(error.contains("missing shell entry for uid 1000"));
+    }
+
+    #[test]
+    fn shell_detector_prefers_env_shell() {
+        let detector = ShellDetector::new(
+            Some("/usr/bin/zsh".to_owned()),
+            etc_fixture_path("passwd", "basic.txt"),
+            1000,
+        );
+        let mut snapshot = SystemSnapshot::default();
+
+        detector
+            .detect(&mut snapshot)
+            .expect("shell detector should succeed");
+
+        let shell = snapshot
+            .shell
+            .as_ref()
+            .expect("shell snapshot should exist");
+        assert_eq!(shell.name, "zsh");
+        assert_eq!(shell.executable_path, "/usr/bin/zsh");
+    }
+
+    #[test]
+    fn shell_detector_falls_back_to_passwd() {
+        let detector = ShellDetector::new(None, etc_fixture_path("passwd", "basic.txt"), 1000);
+        let mut snapshot = SystemSnapshot::default();
+
+        detector
+            .detect(&mut snapshot)
+            .expect("shell detector should succeed");
+
+        let shell = snapshot
+            .shell
+            .as_ref()
+            .expect("shell snapshot should exist");
+        assert_eq!(shell.name, "fish");
+        assert_eq!(shell.executable_path, "/usr/bin/fish");
+    }
+
+    #[test]
+    fn terminal_detector_prefers_term_program() {
+        let detector = TerminalDetector::new(
+            Some("Ghostty".to_owned()),
+            Some("xterm-256color".to_owned()),
+            Some("truecolor".to_owned()),
+        );
+        let mut snapshot = SystemSnapshot::default();
+
+        detector
+            .detect(&mut snapshot)
+            .expect("terminal detector should succeed");
+
+        let terminal = snapshot
+            .terminal
+            .as_ref()
+            .expect("terminal snapshot should exist");
+        assert_eq!(terminal.name, "Ghostty");
+        assert_eq!(terminal.term.as_deref(), Some("xterm-256color"));
+        assert_eq!(terminal.color_term.as_deref(), Some("truecolor"));
+    }
+
+    #[test]
+    fn terminal_detector_falls_back_to_unknown() {
+        let detector = TerminalDetector::new(None, None, None);
+        let mut snapshot = SystemSnapshot::default();
+
+        detector
+            .detect(&mut snapshot)
+            .expect("terminal detector should succeed");
+
+        let terminal = snapshot
+            .terminal
+            .as_ref()
+            .expect("terminal snapshot should exist");
+        assert_eq!(terminal.name, "unknown");
+        assert_eq!(terminal.term, None);
+    }
+
+    #[test]
+    fn parses_terminal_info_from_known_values() {
+        let terminal = parse_terminal_info(Some("Ghostty"), Some("xterm-256color"), None);
+
+        assert_eq!(terminal.name, "Ghostty");
+        assert_eq!(terminal.term.as_deref(), Some("xterm-256color"));
+    }
+
+    #[test]
     fn detect_all_records_timings_and_issues() {
         struct FailingDetector;
 
@@ -489,6 +614,18 @@ mod tests {
         assert_eq!(error.kind, DetectionErrorKind::MissingField);
     }
 
+    #[test]
+    fn detector_error_kind_is_missing_field_for_missing_shell_uid() {
+        let detector = ShellDetector::new(None, etc_fixture_path("passwd", "no-match.txt"), 1000);
+        let mut snapshot = SystemSnapshot::default();
+
+        let error = detector
+            .detect(&mut snapshot)
+            .expect_err("missing passwd shell should fail");
+
+        assert_eq!(error.kind, DetectionErrorKind::MissingField);
+    }
+
     fn fixture_path(name: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
@@ -502,6 +639,15 @@ mod tests {
             .join("tests")
             .join("fixtures")
             .join("proc")
+            .join(kind)
+            .join(name)
+    }
+
+    fn etc_fixture_path(kind: &str, name: &str) -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests")
+            .join("fixtures")
+            .join("etc")
             .join(kind)
             .join(name)
     }
@@ -522,5 +668,7 @@ mod tests {
         assert!(fs::metadata(proc_fixture_path("meminfo", "missing-total.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("mounts", "basic.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("mounts", "no-root.txt")).is_ok());
+        assert!(fs::metadata(etc_fixture_path("passwd", "basic.txt")).is_ok());
+        assert!(fs::metadata(etc_fixture_path("passwd", "no-match.txt")).is_ok());
     }
 }

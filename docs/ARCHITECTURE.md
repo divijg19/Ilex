@@ -1,6 +1,6 @@
 # corefetch Foundation Architecture
 
-This document defines the current stable internal contracts through `0.2.0`.
+This document defines the current stable internal contracts through `0.2.1`.
 
 The goal remains narrow: preserve the one-way detector to module to renderer pipeline while adding the first user-facing baseline fetch output on top of the original foundation.
 
@@ -8,7 +8,8 @@ The goal remains narrow: preserve the one-way detector to module to renderer pip
 
 - Foundation contract version: `foundation-v1`
 - Baseline contract version: `baseline-v1`
-- Release scope: `0.2.0`
+- Environment contract version: `environment-v1`
+- Release scope: `0.2.1`
 - Platform assumption: modern Linux only
 - Command model: `corefetch` is the canonical command; `core`, `cf`, and `ilex` are aliases
 
@@ -51,6 +52,11 @@ Current baseline detector additions:
 
 - `disk` via `/proc/mounts` plus filesystem statistics on the primary mount point
 
+Current environment detector additions:
+
+- `shell` from `$SHELL` with `/etc/passwd` fallback
+- `terminal` from deterministic environment sources such as `TERM_PROGRAM` and `TERM`
+
 ## Snapshot Contract
 
 Current snapshot fields:
@@ -61,6 +67,8 @@ pub struct SystemSnapshot {
     pub cpu: Option<CpuInfo>,
     pub memory: Option<MemoryInfo>,
     pub disk: Option<DiskInfo>,
+    pub shell: Option<ShellInfo>,
+    pub terminal: Option<TerminalInfo>,
 }
 ```
 
@@ -68,7 +76,7 @@ Rules:
 
 - Snapshot fields are optional so failed or unsupported detectors do not force a process crash.
 - Snapshot expansion beyond `0.1.0` should add fields rather than replacing the top-level shape.
-- The current baseline phase supports operating system, CPU, memory, and primary-filesystem disk information.
+- The current environment phase supports operating system, CPU, memory, primary-filesystem disk, shell, and terminal information.
 
 ## Module Contract
 
@@ -96,6 +104,11 @@ Current foundation module set:
 Current baseline module additions:
 
 - `disk`
+
+Current environment module additions:
+
+- `shell`
+- `terminal`
 
 ## Renderer Contract
 
@@ -152,9 +165,17 @@ The runtime binary prints these checks so the foundation gate can be inspected w
 - The snapshot produces renderable `os`, `cpu`, `memory`, and `disk` module entries
 - Detection issue count is zero in the happy path
 
-## Explicitly Deferred Beyond `0.2.0`
+`environment-v1` is considered complete only when all of the following are true:
 
-- `shell` and `terminal` detection
+- Canonical command remains `corefetch`
+- Detector registry includes `os`, `cpu`, `memory`, `disk`, `shell`, and `terminal`
+- Module registry includes `os`, `cpu`, `memory`, `disk`, `shell`, and `terminal`
+- Renderer registry includes `fetch-text`, `minimal-text`, and `json`
+- The snapshot produces renderable `os`, `cpu`, `memory`, `disk`, `shell`, and `terminal` module entries
+- Detection issue count is zero in the happy path
+
+## Explicitly Deferred Beyond `0.2.1`
+
 - Configuration parsing beyond initial `0.2.x` defaults
 - Plugin or extension loading
 - Cross-platform support

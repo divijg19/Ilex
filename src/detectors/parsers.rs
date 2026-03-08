@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{CpuInfo, DiskMount, MemoryInfo, OsInfo};
+use super::{CpuInfo, DiskMount, MemoryInfo, OsInfo, TerminalInfo};
 
 pub(super) fn parse_os_release(content: &str) -> Result<OsInfo, String> {
     let values = parse_key_value_lines(content);
@@ -123,6 +123,56 @@ pub(super) fn parse_primary_mount(content: &str) -> Result<DiskMount, String> {
     Err("missing root filesystem entry in mounts".to_owned())
 }
 
+pub(super) fn parse_passwd_shell(content: &str, uid: u32) -> Result<String, String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+
+        let fields: Vec<&str> = line.split(':').collect();
+        if fields.len() < 7 {
+            continue;
+        }
+
+        let Ok(parsed_uid) = fields[2].parse::<u32>() else {
+            continue;
+        };
+
+        if parsed_uid == uid {
+            let shell = fields[6].trim();
+            if shell.is_empty() {
+                return Err(format!("missing shell for uid {uid} in passwd"));
+            }
+
+            return Ok(shell.to_owned());
+        }
+    }
+
+    Err(format!("missing shell entry for uid {uid} in passwd"))
+}
+
+pub(super) fn parse_terminal_info(
+    term_program: Option<&str>,
+    term: Option<&str>,
+    color_term: Option<&str>,
+) -> TerminalInfo {
+    let term_program = normalize_optional_env(term_program);
+    let term = normalize_optional_env(term);
+    let color_term = normalize_optional_env(color_term);
+    let name = term_program
+        .clone()
+        .or_else(|| term.clone())
+        .or_else(|| color_term.clone())
+        .unwrap_or_else(|| "unknown".to_owned());
+
+    TerminalInfo {
+        name,
+        term,
+        color_term,
+    }
+}
+
 fn parse_key_value_lines(content: &str) -> BTreeMap<String, String> {
     let mut values = BTreeMap::new();
 
@@ -181,4 +231,11 @@ fn normalize_mount_field(value: &str) -> String {
         .replace("\\011", "\t")
         .replace("\\012", "\n")
         .replace("\\134", "\\")
+}
+
+fn normalize_optional_env(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
 }

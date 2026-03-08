@@ -258,6 +258,13 @@ Exit criteria:
 - Default and minimal output include `shell` and `terminal` when available.
 - JSON output includes the same fields without special-case logic.
 
+Implementation status:
+
+- `shell` detection now prefers `$SHELL` and falls back to `/etc/passwd` for the current user.
+- `terminal` detection now prefers `TERM_PROGRAM`, then `TERM`, with an `unknown` fallback.
+- Matching modules are rendered through the default, minimal, JSON, and bootstrap output paths.
+- Environment readiness is exposed through the new `environment-v1` contract.
+
 ## `0.2.2` Config Slice
 
 Objective: add the first real configuration surface without reopening the core probe pipeline.

@@ -33,7 +33,8 @@ jobs:
 
       - name: Verify default fetch output
         run: |
-          cargo run --bin corefetch | grep -F "Disk:"
+          cargo run --bin corefetch | grep -F "Shell:"
+          cargo run --bin corefetch | grep -F "Terminal:"
 
       - name: Verify minimal output
         run: |
@@ -41,4 +42,4 @@ jobs:
 
       - name: Verify JSON output
         run: |
-          cargo run --bin corefetch -- --json | python3 -c 'import json, sys; data = json.load(sys.stdin); assert data["contracts"][0]["contract_version"] == "foundation-v1"; assert data["contracts"][1]["contract_version"] == "baseline-v1"; assert any(module["key"] == "disk" for module in data["modules"])'
+          cargo run --bin corefetch -- --json | python3 -c 'import json, sys; data = json.load(sys.stdin); assert data["contracts"][0]["contract_version"] == "foundation-v1"; assert data["contracts"][1]["contract_version"] == "baseline-v1"; assert data["contracts"][2]["contract_version"] == "environment-v1"; assert any(module["key"] == "shell" for module in data["modules"]); assert any(module["key"] == "terminal" for module in data["modules"])'

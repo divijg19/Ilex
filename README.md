@@ -139,6 +139,8 @@ OS: Fedora Linux 43
 CPU: Ryzen 7 7840U (16 cores)
 Memory: 6.2 GiB / 32.0 GiB
 Disk: 140.0 GiB / 512.0 GiB (/)
+Shell: fish
+Terminal: Ghostty (xterm-256color)
 ```
 
 Current alternate modes:
@@ -148,7 +150,6 @@ Current alternate modes:
 
 Future output expansion still includes:
 
-- shell and terminal reporting
 - broader hardware coverage
 - richer layout and graph modes
 
@@ -246,21 +247,21 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.2.0`
+- Current version: `0.2.1`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
-- Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`
+- Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`, `shell`, `terminal`
 - Implemented module pipeline: detector -> module -> renderer
 - Output modes: default fetch, `--minimal`, `--json`
-- Contracts and readiness gates: `foundation-v1` preserved, `baseline-v1` added
-- Shared module formatting utilities are now in place for core-count, memory, and disk display
+- Contracts and readiness gates: `foundation-v1`, `baseline-v1`, `environment-v1`
+- Shared module formatting utilities are now in place for core-count, memory, disk, and terminal display
 - Detector parsing is split into a dedicated submodule with malformed-input fixture coverage
 - Detector implementations are split by domain file for maintainability
 - CI checks include format, tests, build, default output, minimal output, and JSON verification
 
 Near-term focus:
 
-- `0.2.1` environment-context expansion (`shell`, `terminal`)
 - `0.2.2` initial config loading and module ordering/toggles
+- `0.2.3` baseline closeout and integration coverage
 
 ---
 

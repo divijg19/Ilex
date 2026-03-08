@@ -1,0 +1,2 @@
+root:x:0:0:root:/root:/bin/bash
+kamikuma:x:1000:1000:Kamikuma:/home/kamikuma:/usr/bin/fish
