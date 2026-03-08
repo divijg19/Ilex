@@ -2,7 +2,7 @@ use std::time::Instant;
 
 use crate::VERSION;
 use crate::cli::Invocation;
-use crate::config::ConfigState;
+use crate::config::{ConfigError, ConfigState};
 use crate::contracts::{
     ReadinessReport, evaluate_baseline_readiness, evaluate_environment_readiness,
     evaluate_foundation_readiness,
@@ -20,20 +20,23 @@ pub struct App {
 }
 
 impl App {
-    pub fn bootstrap(invocation: Invocation) -> Self {
-        Self {
+    pub fn bootstrap(invocation: Invocation) -> Result<Self, ConfigError> {
+        Ok(Self {
             invocation,
-            config: ConfigState::bootstrap_defaults(),
+            config: ConfigState::load()?,
             detectors: DetectorRegistry::bootstrap(),
             modules: ModuleRegistry::bootstrap(),
             renderers: RendererRegistry::bootstrap(),
-        }
+        })
     }
 
     pub fn run(&self) -> String {
         let started_at = Instant::now();
         let detection = self.detectors.detect_all();
-        let module_entries = self.modules.collect(&detection.snapshot);
+        let raw_module_entries = self.modules.collect(&detection.snapshot);
+        let module_entries = self
+            .config
+            .apply_module_preferences(raw_module_entries.clone());
         let detector_keys: Vec<String> = self
             .detectors
             .keys()
@@ -57,7 +60,7 @@ impl App {
             &detector_keys,
             &module_keys,
             &renderer_keys,
-            &module_entries,
+            &raw_module_entries,
             detection.issues.len(),
         );
         let baseline_readiness = evaluate_baseline_readiness(
@@ -65,7 +68,7 @@ impl App {
             &detector_keys,
             &module_keys,
             &renderer_keys,
-            &module_entries,
+            &raw_module_entries,
             detection.issues.len(),
         );
         let environment_readiness = evaluate_environment_readiness(
@@ -73,7 +76,7 @@ impl App {
             &detector_keys,
             &module_keys,
             &renderer_keys,
-            &module_entries,
+            &raw_module_entries,
             detection.issues.len(),
         );
         let view = RenderView {
@@ -118,7 +121,12 @@ impl App {
         };
 
         self.renderers
-            .render(self.invocation.output_mode().renderer_key(), &view)
+            .render(
+                self.config
+                    .resolve_output_mode(self.invocation.requested_output_mode())
+                    .renderer_key(),
+                &view,
+            )
             .expect("selected renderer should be registered")
     }
 }

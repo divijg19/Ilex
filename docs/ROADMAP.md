@@ -288,6 +288,14 @@ Exit criteria:
 - Missing config files fall back cleanly to defaults.
 - Config overrides output ordering and module visibility predictably.
 
+Implementation status:
+
+- `~/.config/corefetch/config.toml` is now loaded automatically when present.
+- `output.default_mode` now selects the renderer when no CLI mode flag is passed.
+- `modules.order` now reorders rendered module entries without changing detector execution.
+- `modules.enabled.<key>` now enables or disables individual modules in rendered output.
+- Invalid config values now fail fast with actionable startup errors.
+
 ## `0.2.3` Baseline Closeout
 
 Objective: harden the complete `0.2.x` baseline series before moving on to broader hardware work.

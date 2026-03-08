@@ -1,0 +1,8 @@
+[output]
+default_mode = "minimal"
+
+[modules]
+order = ["shell", "os", "cpu", "memory", "disk", "terminal"]
+
+[modules.enabled]
+terminal = false

@@ -37,7 +37,7 @@ The goal is not only to replicate existing fetch tools but to **expand what a fe
 | `cf` | minimal shorthand |
 | `ilex` | internal codename alias |
 
-`corefetch` remains the canonical entrypoint. `core`, `cf`, and `ilex` are aliases only.
+`corefetch` remains the canonical entrypoint. `core`, `cf`, and `ilex` are aliases.
 
 Example usage:
 
@@ -52,20 +52,6 @@ corefetch --minimal
 ```bash
 corefetch --json
 ```
-
-```bash
-core
-```
-
-```bash
-cf
-```
-
-```bash
-ilex
-```
-
-All commands invoke `corefetch`.
 
 ---
 
@@ -218,15 +204,23 @@ Configuration lives in:
 Example:
 
 ```toml
-[layout]
-logo = "left"
+[output]
+default_mode = "minimal"
 
-[module.cpu]
-enabled = true
+[modules]
+order = ["shell", "os", "cpu", "memory", "disk", "terminal"]
 
-[module.memory]
-bar = true
+[modules.enabled]
+terminal = false
 ```
+
+Currently supported config behavior:
+
+- `output.default_mode = "fetch" | "minimal" | "json"`
+- `modules.order = [...]` for simple module ordering
+- `modules.enabled.<key> = true | false` for per-module toggles
+
+Invalid config values currently fail fast with an actionable startup error.
 
 ---
 
@@ -247,7 +241,7 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.2.1`
+- Current version: `0.2.2`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
 - Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`, `shell`, `terminal`
 - Implemented module pipeline: detector -> module -> renderer
@@ -257,11 +251,12 @@ Current release status:
 - Detector parsing is split into a dedicated submodule with malformed-input fixture coverage
 - Detector implementations are split by domain file for maintainability
 - CI checks include format, tests, build, default output, minimal output, and JSON verification
+- Config loading now supports output defaults, simple module ordering, and per-module toggles from `~/.config/corefetch/config.toml`
 
 Near-term focus:
 
-- `0.2.2` initial config loading and module ordering/toggles
 - `0.2.3` baseline closeout and integration coverage
+- `0.3.0` broader hardware expansion after the baseline line is closed out
 
 ---
 

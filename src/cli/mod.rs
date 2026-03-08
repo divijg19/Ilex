@@ -16,6 +16,15 @@ impl OutputMode {
             Self::Json => "json",
         }
     }
+
+    pub fn from_config_value(value: &str) -> Option<Self> {
+        match value.trim() {
+            "fetch" => Some(Self::Fetch),
+            "minimal" => Some(Self::Minimal),
+            "json" => Some(Self::Json),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -61,7 +70,7 @@ impl BinaryAlias {
 pub struct Invocation {
     binary_name: String,
     alias: BinaryAlias,
-    output_mode: OutputMode,
+    requested_output_mode: Option<OutputMode>,
     raw_args: Vec<String>,
 }
 
@@ -77,13 +86,13 @@ impl Invocation {
             .map(|value| program_name(value))
             .unwrap_or_else(|| "corefetch".to_owned());
         let alias = BinaryAlias::from_program_name(binary_name.as_str());
-        let mut output_mode = OutputMode::Fetch;
+        let mut requested_output_mode = None;
         let mut user_args = Vec::new();
 
         for argument in raw_args.into_iter().skip(1) {
             match argument.as_str() {
-                "--json" => output_mode = OutputMode::Json,
-                "--minimal" => output_mode = OutputMode::Minimal,
+                "--json" => requested_output_mode = Some(OutputMode::Json),
+                "--minimal" => requested_output_mode = Some(OutputMode::Minimal),
                 _ => user_args.push(argument),
             }
         }
@@ -91,7 +100,7 @@ impl Invocation {
         Self {
             binary_name,
             alias,
-            output_mode,
+            requested_output_mode,
             raw_args: user_args,
         }
     }
@@ -112,8 +121,8 @@ impl Invocation {
         self.alias.is_primary()
     }
 
-    pub fn output_mode(&self) -> OutputMode {
-        self.output_mode
+    pub fn requested_output_mode(&self) -> Option<OutputMode> {
+        self.requested_output_mode
     }
 
     pub fn user_args(&self) -> &[String] {
@@ -165,7 +174,7 @@ mod tests {
             "--verbose".to_owned(),
         ]);
 
-        assert_eq!(invocation.output_mode(), OutputMode::Json);
+        assert_eq!(invocation.requested_output_mode(), Some(OutputMode::Json));
         assert_eq!(invocation.user_args(), &["--verbose".to_owned()]);
     }
 
@@ -177,6 +186,13 @@ mod tests {
             "--json".to_owned(),
         ]);
 
-        assert_eq!(invocation.output_mode(), OutputMode::Json);
+        assert_eq!(invocation.requested_output_mode(), Some(OutputMode::Json));
+    }
+
+    #[test]
+    fn requested_output_mode_is_none_without_flag() {
+        let invocation = Invocation::from_args(vec!["corefetch".to_owned()]);
+
+        assert_eq!(invocation.requested_output_mode(), None);
     }
 }
