@@ -241,7 +241,7 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.2.2`
+- Current version: `0.2.3`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
 - Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`, `shell`, `terminal`
 - Implemented module pipeline: detector -> module -> renderer
@@ -252,11 +252,12 @@ Current release status:
 - Detector implementations are split by domain file for maintainability
 - CI checks include format, tests, build, default output, minimal output, and JSON verification
 - Config loading now supports output defaults, simple module ordering, and per-module toggles from `~/.config/corefetch/config.toml`
+- Integration-style runtime coverage now verifies default, configured, JSON-override, and invalid-config startup paths
 
 Near-term focus:
 
-- `0.2.3` baseline closeout and integration coverage
 - `0.3.0` broader hardware expansion after the baseline line is closed out
+- `0.4.0` stable structured output and schema hardening
 
 ---
 

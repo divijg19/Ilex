@@ -316,6 +316,12 @@ Exit criteria:
 - The `0.2.x` series is covered by both unit and integration-style validation.
 - Public documentation describes the current product state accurately.
 
+Implementation status:
+
+- Integration-style runtime coverage now validates default startup, configured startup, explicit JSON override, and invalid-config failure behavior.
+- CI now verifies configured output behavior and invalid-config failure in addition to the existing default, minimal, and JSON checks.
+- README and architecture docs now describe the shipped `0.2.3` baseline state.
+
 ## `0.3.0` Hardware Expansion
 
 Objective: widen Linux detection coverage without breaking the architecture.

@@ -43,3 +43,20 @@ jobs:
       - name: Verify JSON output
         run: |
           cargo run --bin corefetch -- --json | python3 -c 'import json, sys; data = json.load(sys.stdin); assert data["contracts"][0]["contract_version"] == "foundation-v1"; assert data["contracts"][1]["contract_version"] == "baseline-v1"; assert data["contracts"][2]["contract_version"] == "environment-v1"; assert any(module["key"] == "shell" for module in data["modules"]); assert any(module["key"] == "terminal" for module in data["modules"])'
+
+      - name: Verify configured minimal output
+        run: |
+          export HOME="$(mktemp -d)"
+          mkdir -p "$HOME/.config/corefetch"
+          cp tests/fixtures/config/basic.toml "$HOME/.config/corefetch/config.toml"
+          cargo run --bin corefetch | grep -F "Shell "
+          cargo run --bin corefetch | grep -F " | "
+          ! cargo run --bin corefetch | grep -F "Terminal "
+
+      - name: Verify invalid config failure
+        run: |
+          export HOME="$(mktemp -d)"
+          mkdir -p "$HOME/.config/corefetch"
+          cp tests/fixtures/config/invalid-mode.toml "$HOME/.config/corefetch/config.toml"
+          ! cargo run --bin corefetch >stdout.txt 2>stderr.txt
+          grep -F "corefetch: invalid output.default_mode" stderr.txt

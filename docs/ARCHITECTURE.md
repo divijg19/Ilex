@@ -1,6 +1,6 @@
 # corefetch Foundation Architecture
 
-This document defines the current stable internal contracts through `0.2.2`.
+This document defines the current stable internal contracts through `0.2.3`.
 
 The goal remains narrow: preserve the one-way detector to module to renderer pipeline while adding the first user-facing baseline fetch output on top of the original foundation.
 
@@ -9,7 +9,7 @@ The goal remains narrow: preserve the one-way detector to module to renderer pip
 - Foundation contract version: `foundation-v1`
 - Baseline contract version: `baseline-v1`
 - Environment contract version: `environment-v1`
-- Release scope: `0.2.2`
+- Release scope: `0.2.3`
 - Platform assumption: modern Linux only
 - Command model: `corefetch` is the canonical command; `core`, `cf`, and `ilex` are aliases
 
@@ -139,7 +139,7 @@ Current baseline renderer additions:
 
 ## Configuration Contract
 
-Current `0.2.2` config behavior:
+Current `0.2.3` config behavior:
 
 - Config is loaded from `~/.config/corefetch/config.toml` when present.
 - Missing config falls back to defaults without changing startup behavior.
@@ -190,7 +190,15 @@ The runtime binary prints these checks so the foundation gate can be inspected w
 - The snapshot produces renderable `os`, `cpu`, `memory`, `disk`, `shell`, and `terminal` module entries
 - Detection issue count is zero in the happy path
 
-## Explicitly Deferred Beyond `0.2.2`
+## Validation Contract
+
+Current `0.2.3` validation behavior:
+
+- Unit coverage continues to validate parsers, detectors, modules, renderers, contracts, and config loading.
+- Integration-style runtime tests now validate no-config startup, configured startup, explicit CLI override of configured defaults, and invalid-config failure behavior.
+- CI verifies the default fetch path, the configured minimal path, the JSON path, and the invalid-config path.
+
+## Explicitly Deferred Beyond `0.2.3`
 
 - Configuration parsing beyond initial `0.2.x` defaults
 - Detector execution policy changes driven by config
