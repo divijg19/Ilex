@@ -1,11 +1,14 @@
 use std::fmt;
-use std::fs;
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+mod cpu;
+mod memory;
+mod os;
 mod parsers;
 
-use self::parsers::{parse_cpu_info, parse_meminfo, parse_os_release};
+pub use self::cpu::CpuInfoDetector;
+pub use self::memory::MemoryInfoDetector;
+pub use self::os::OsReleaseDetector;
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemSnapshot {
@@ -66,7 +69,7 @@ pub struct DetectionError {
 }
 
 impl DetectionError {
-    fn io(detector_key: &'static str, message: String) -> Self {
+    pub(super) fn io(detector_key: &'static str, message: String) -> Self {
         Self {
             detector_key,
             kind: DetectionErrorKind::Io,
@@ -74,7 +77,7 @@ impl DetectionError {
         }
     }
 
-    fn parse(detector_key: &'static str, message: String) -> Self {
+    pub(super) fn parse(detector_key: &'static str, message: String) -> Self {
         Self {
             detector_key,
             kind: DetectionErrorKind::Parse,
@@ -82,7 +85,7 @@ impl DetectionError {
         }
     }
 
-    fn missing_field(detector_key: &'static str, message: String) -> Self {
+    pub(super) fn missing_field(detector_key: &'static str, message: String) -> Self {
         Self {
             detector_key,
             kind: DetectionErrorKind::MissingField,
@@ -121,120 +124,6 @@ pub struct DetectorTiming {
 pub trait Detector {
     fn key(&self) -> &'static str;
     fn detect(&self, snapshot: &mut SystemSnapshot) -> Result<(), DetectionError>;
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OsReleaseDetector {
-    source: PathBuf,
-}
-
-impl Default for OsReleaseDetector {
-    fn default() -> Self {
-        Self {
-            source: PathBuf::from("/etc/os-release"),
-        }
-    }
-}
-
-impl OsReleaseDetector {
-    pub fn new(source: PathBuf) -> Self {
-        Self { source }
-    }
-}
-
-impl Detector for OsReleaseDetector {
-    fn key(&self) -> &'static str {
-        "os"
-    }
-
-    fn detect(&self, snapshot: &mut SystemSnapshot) -> Result<(), DetectionError> {
-        let content = fs::read_to_string(&self.source).map_err(|error| {
-            DetectionError::io(
-                self.key(),
-                format!("failed to read {}: {error}", self.source.display()),
-            )
-        })?;
-        let os_info =
-            parse_os_release(&content).map_err(|message| map_parse_error(self.key(), message))?;
-        snapshot.os = Some(os_info);
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CpuInfoDetector {
-    source: PathBuf,
-}
-
-impl Default for CpuInfoDetector {
-    fn default() -> Self {
-        Self {
-            source: PathBuf::from("/proc/cpuinfo"),
-        }
-    }
-}
-
-impl CpuInfoDetector {
-    pub fn new(source: PathBuf) -> Self {
-        Self { source }
-    }
-}
-
-impl Detector for CpuInfoDetector {
-    fn key(&self) -> &'static str {
-        "cpu"
-    }
-
-    fn detect(&self, snapshot: &mut SystemSnapshot) -> Result<(), DetectionError> {
-        let content = fs::read_to_string(&self.source).map_err(|error| {
-            DetectionError::io(
-                self.key(),
-                format!("failed to read {}: {error}", self.source.display()),
-            )
-        })?;
-        let cpu_info =
-            parse_cpu_info(&content).map_err(|message| map_parse_error(self.key(), message))?;
-        snapshot.cpu = Some(cpu_info);
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MemoryInfoDetector {
-    source: PathBuf,
-}
-
-impl Default for MemoryInfoDetector {
-    fn default() -> Self {
-        Self {
-            source: PathBuf::from("/proc/meminfo"),
-        }
-    }
-}
-
-impl MemoryInfoDetector {
-    pub fn new(source: PathBuf) -> Self {
-        Self { source }
-    }
-}
-
-impl Detector for MemoryInfoDetector {
-    fn key(&self) -> &'static str {
-        "memory"
-    }
-
-    fn detect(&self, snapshot: &mut SystemSnapshot) -> Result<(), DetectionError> {
-        let content = fs::read_to_string(&self.source).map_err(|error| {
-            DetectionError::io(
-                self.key(),
-                format!("failed to read {}: {error}", self.source.display()),
-            )
-        })?;
-        let memory_info =
-            parse_meminfo(&content).map_err(|message| map_parse_error(self.key(), message))?;
-        snapshot.memory = Some(memory_info);
-        Ok(())
-    }
 }
 
 pub struct DetectorRegistry {
@@ -293,7 +182,7 @@ impl DetectorRegistry {
     }
 }
 
-fn map_parse_error(detector_key: &'static str, message: String) -> DetectionError {
+pub(super) fn map_parse_error(detector_key: &'static str, message: String) -> DetectionError {
     if message.starts_with("missing ") {
         DetectionError::missing_field(detector_key, message)
     } else {
@@ -306,9 +195,9 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
+    use super::parsers::{parse_cpu_info, parse_meminfo, parse_os_release};
     use super::{
         CpuInfoDetector, DetectionErrorKind, MemoryInfoDetector, OsReleaseDetector, SystemSnapshot,
-        parse_cpu_info, parse_meminfo, parse_os_release,
     };
     use crate::detectors::Detector;
 
