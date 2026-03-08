@@ -4,7 +4,8 @@ use crate::VERSION;
 use crate::cli::Invocation;
 use crate::config::ConfigState;
 use crate::contracts::{
-    ReadinessReport, evaluate_baseline_readiness, evaluate_foundation_readiness,
+    ReadinessReport, evaluate_baseline_readiness, evaluate_environment_readiness,
+    evaluate_foundation_readiness,
 };
 use crate::detectors::DetectorRegistry;
 use crate::modules::ModuleRegistry;
@@ -67,6 +68,14 @@ impl App {
             &module_entries,
             detection.issues.len(),
         );
+        let environment_readiness = evaluate_environment_readiness(
+            self.invocation.canonical_command(),
+            &detector_keys,
+            &module_keys,
+            &renderer_keys,
+            &module_entries,
+            detection.issues.len(),
+        );
         let view = RenderView {
             version: VERSION,
             binary_name: self.invocation.binary_name().to_owned(),
@@ -93,6 +102,7 @@ impl App {
             pipeline_duration: started_at.elapsed(),
             foundation_readiness: map_readiness(&foundation_readiness),
             baseline_readiness: map_readiness(&baseline_readiness),
+            environment_readiness: map_readiness(&environment_readiness),
             issues: detection
                 .issues
                 .iter()

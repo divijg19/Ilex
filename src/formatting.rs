@@ -15,6 +15,13 @@ pub fn format_disk_usage(total_kib: u64, used_kib: Option<u64>, mount_point: &st
     format_storage_usage(total_kib, used_kib, Some(mount_point))
 }
 
+pub fn format_terminal_identity(name: &str, term: Option<&str>) -> String {
+    match term {
+        Some(term_name) if term_name != name => format!("{name} ({term_name})"),
+        _ => name.to_owned(),
+    }
+}
+
 fn format_storage_usage(
     total_kib: u64,
     used_kib: Option<u64>,
@@ -49,7 +56,10 @@ fn kib_to_gib(kib: u64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_core_count, format_disk_usage, format_gib_from_kib, format_memory_usage};
+    use super::{
+        format_core_count, format_disk_usage, format_gib_from_kib, format_memory_usage,
+        format_terminal_identity,
+    };
 
     #[test]
     fn formats_core_count() {
@@ -88,6 +98,22 @@ mod tests {
         assert_eq!(
             format_disk_usage(16384000, None, "/home"),
             "15.6 GiB total (/home)"
+        );
+    }
+
+    #[test]
+    fn formats_terminal_identity_with_distinct_term() {
+        assert_eq!(
+            format_terminal_identity("Ghostty", Some("xterm-256color")),
+            "Ghostty (xterm-256color)"
+        );
+    }
+
+    #[test]
+    fn formats_terminal_identity_without_distinct_term() {
+        assert_eq!(
+            format_terminal_identity("xterm-256color", Some("xterm-256color")),
+            "xterm-256color"
         );
     }
 }

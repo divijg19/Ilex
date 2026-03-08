@@ -1,5 +1,7 @@
 use crate::detectors::SystemSnapshot;
-use crate::formatting::{format_core_count, format_disk_usage, format_memory_usage};
+use crate::formatting::{
+    format_core_count, format_disk_usage, format_memory_usage, format_terminal_identity,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleEntry {
@@ -24,6 +26,12 @@ pub struct MemoryModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DiskModule;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShellModule;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalModule;
 
 impl Module for OsModule {
     fn key(&self) -> &'static str {
@@ -85,6 +93,34 @@ impl Module for DiskModule {
     }
 }
 
+impl Module for ShellModule {
+    fn key(&self) -> &'static str {
+        "shell"
+    }
+
+    fn collect(&self, snapshot: &SystemSnapshot) -> Option<ModuleEntry> {
+        snapshot.shell.as_ref().map(|shell| ModuleEntry {
+            key: "shell",
+            label: "Shell",
+            value: shell.name.clone(),
+        })
+    }
+}
+
+impl Module for TerminalModule {
+    fn key(&self) -> &'static str {
+        "terminal"
+    }
+
+    fn collect(&self, snapshot: &SystemSnapshot) -> Option<ModuleEntry> {
+        snapshot.terminal.as_ref().map(|terminal| ModuleEntry {
+            key: "terminal",
+            label: "Terminal",
+            value: format_terminal_identity(&terminal.name, terminal.term.as_deref()),
+        })
+    }
+}
+
 pub struct ModuleRegistry {
     modules: Vec<Box<dyn Module>>,
 }
@@ -97,6 +133,8 @@ impl ModuleRegistry {
                 Box::new(CpuModule),
                 Box::new(MemoryModule),
                 Box::new(DiskModule),
+                Box::new(ShellModule),
+                Box::new(TerminalModule),
             ],
         }
     }
@@ -115,8 +153,12 @@ impl ModuleRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::{CpuModule, DiskModule, MemoryModule, Module, OsModule};
-    use crate::detectors::{CpuInfo, DiskInfo, MemoryInfo, OsInfo, SystemSnapshot};
+    use super::{
+        CpuModule, DiskModule, MemoryModule, Module, OsModule, ShellModule, TerminalModule,
+    };
+    use crate::detectors::{
+        CpuInfo, DiskInfo, MemoryInfo, OsInfo, ShellInfo, SystemSnapshot, TerminalInfo,
+    };
 
     #[test]
     fn os_module_uses_pretty_name() {
@@ -191,5 +233,42 @@ mod tests {
 
         assert_eq!(entry.label, "Disk");
         assert_eq!(entry.value, "31.2 GiB / 62.5 GiB (/)");
+    }
+
+    #[test]
+    fn shell_module_uses_shell_name() {
+        let module = ShellModule;
+        let snapshot = SystemSnapshot {
+            shell: Some(ShellInfo {
+                executable_path: "/usr/bin/fish".to_owned(),
+                name: "fish".to_owned(),
+            }),
+            ..SystemSnapshot::default()
+        };
+
+        let entry = module.collect(&snapshot).expect("shell module should emit");
+
+        assert_eq!(entry.label, "Shell");
+        assert_eq!(entry.value, "fish");
+    }
+
+    #[test]
+    fn terminal_module_formats_program_and_term() {
+        let module = TerminalModule;
+        let snapshot = SystemSnapshot {
+            terminal: Some(TerminalInfo {
+                name: "Ghostty".to_owned(),
+                term: Some("xterm-256color".to_owned()),
+                color_term: Some("truecolor".to_owned()),
+            }),
+            ..SystemSnapshot::default()
+        };
+
+        let entry = module
+            .collect(&snapshot)
+            .expect("terminal module should emit");
+
+        assert_eq!(entry.label, "Terminal");
+        assert_eq!(entry.value, "Ghostty (xterm-256color)");
     }
 }
