@@ -250,7 +250,7 @@ Current release status:
 - Shared module formatting utilities are now in place for core-count, memory, disk, and terminal display
 - Detector parsing is split into a dedicated submodule with malformed-input fixture coverage
 - Detector implementations are split by domain file for maintainability
-- CI checks include format, tests, build, default output, minimal output, and JSON verification
+- CI checks include format, tests, build, default output, minimal output, JSON verification, configured-output verification, and invalid-config verification
 - Config loading now supports output defaults, simple module ordering, and per-module toggles from `~/.config/corefetch/config.toml`
 - Integration-style runtime coverage now verifies default, configured, JSON-override, and invalid-config startup paths
 

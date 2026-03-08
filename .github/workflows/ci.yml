@@ -46,17 +46,34 @@ jobs:
 
       - name: Verify configured minimal output
         run: |
-          export HOME="$(mktemp -d)"
+          ORIGINAL_HOME="$HOME"
+          TEMP_HOME="$(mktemp -d)"
+          export HOME="$TEMP_HOME"
+          export CARGO_HOME="${CARGO_HOME:-$ORIGINAL_HOME/.cargo}"
+          export RUSTUP_HOME="${RUSTUP_HOME:-$ORIGINAL_HOME/.rustup}"
           mkdir -p "$HOME/.config/corefetch"
           cp tests/fixtures/config/basic.toml "$HOME/.config/corefetch/config.toml"
-          cargo run --bin corefetch | grep -F "Shell "
-          cargo run --bin corefetch | grep -F " | "
-          ! cargo run --bin corefetch | grep -F "Terminal "
+          output="$(cargo run --bin corefetch)"
+          echo "$output" | grep -F "Shell "
+          echo "$output" | grep -F " | "
+          ! echo "$output" | grep -F "Terminal "
+          rm -rf "$TEMP_HOME"
 
       - name: Verify invalid config failure
         run: |
-          export HOME="$(mktemp -d)"
+          ORIGINAL_HOME="$HOME"
+          TEMP_HOME="$(mktemp -d)"
+          export HOME="$TEMP_HOME"
+          export CARGO_HOME="${CARGO_HOME:-$ORIGINAL_HOME/.cargo}"
+          export RUSTUP_HOME="${RUSTUP_HOME:-$ORIGINAL_HOME/.rustup}"
           mkdir -p "$HOME/.config/corefetch"
           cp tests/fixtures/config/invalid-mode.toml "$HOME/.config/corefetch/config.toml"
-          ! cargo run --bin corefetch >stdout.txt 2>stderr.txt
-          grep -F "corefetch: invalid output.default_mode" stderr.txt
+          stdout_file="$(mktemp)"
+          stderr_file="$(mktemp)"
+          if cargo run --bin corefetch >"$stdout_file" 2>"$stderr_file"; then
+            echo "expected invalid config startup to fail" >&2
+            exit 1
+          fi
+          grep -F "corefetch: invalid output.default_mode" "$stderr_file"
+          rm -f "$stdout_file" "$stderr_file"
+          rm -rf "$TEMP_HOME"
