@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - v0.0.x
+      - v0.1.x
+      - v0.2.x
   pull_request:
 
 jobs:
@@ -29,14 +31,14 @@ jobs:
       - name: Build
         run: cargo build
 
-      - name: Verify primary entrypoint
+      - name: Verify default fetch output
         run: |
-          cargo run --bin corefetch | grep -F "primary command: corefetch"
+          cargo run --bin corefetch | grep -F "Disk:"
 
-      - name: Verify readiness gate
+      - name: Verify minimal output
         run: |
-          cargo run --bin corefetch | grep -F "foundation readiness: ready"
+          cargo run --bin corefetch -- --minimal | grep -F " | "
 
-      - name: Verify foundation contract
+      - name: Verify JSON output
         run: |
-          cargo run --bin corefetch | grep -F "contract: foundation-v1"
+          cargo run --bin corefetch -- --json | python3 -c 'import json, sys; data = json.load(sys.stdin); assert data["contracts"][0]["contract_version"] == "foundation-v1"; assert data["contracts"][1]["contract_version"] == "baseline-v1"; assert any(module["key"] == "disk" for module in data["modules"])'

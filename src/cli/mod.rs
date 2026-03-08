@@ -1,6 +1,23 @@
 use std::env;
 use std::path::Path;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OutputMode {
+    Fetch,
+    Minimal,
+    Json,
+}
+
+impl OutputMode {
+    pub fn renderer_key(&self) -> &'static str {
+        match self {
+            Self::Fetch => "fetch-text",
+            Self::Minimal => "minimal-text",
+            Self::Json => "json",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BinaryAlias {
     Corefetch,
@@ -44,22 +61,37 @@ impl BinaryAlias {
 pub struct Invocation {
     binary_name: String,
     alias: BinaryAlias,
+    output_mode: OutputMode,
     raw_args: Vec<String>,
 }
 
 impl Invocation {
     pub fn from_env() -> Self {
-        let raw_args: Vec<String> = env::args().collect();
+        Self::from_args(env::args())
+    }
+
+    fn from_args(args: impl IntoIterator<Item = String>) -> Self {
+        let raw_args: Vec<String> = args.into_iter().collect();
         let binary_name = raw_args
             .first()
             .map(|value| program_name(value))
             .unwrap_or_else(|| "corefetch".to_owned());
         let alias = BinaryAlias::from_program_name(binary_name.as_str());
-        let user_args = raw_args.into_iter().skip(1).collect();
+        let mut output_mode = OutputMode::Fetch;
+        let mut user_args = Vec::new();
+
+        for argument in raw_args.into_iter().skip(1) {
+            match argument.as_str() {
+                "--json" => output_mode = OutputMode::Json,
+                "--minimal" => output_mode = OutputMode::Minimal,
+                _ => user_args.push(argument),
+            }
+        }
 
         Self {
             binary_name,
             alias,
+            output_mode,
             raw_args: user_args,
         }
     }
@@ -80,6 +112,10 @@ impl Invocation {
         self.alias.is_primary()
     }
 
+    pub fn output_mode(&self) -> OutputMode {
+        self.output_mode
+    }
+
     pub fn user_args(&self) -> &[String] {
         &self.raw_args
     }
@@ -95,7 +131,7 @@ fn program_name(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{BinaryAlias, program_name};
+    use super::{BinaryAlias, Invocation, OutputMode, program_name};
 
     #[test]
     fn detects_known_aliases() {
@@ -119,5 +155,28 @@ mod tests {
     #[test]
     fn extracts_binary_name_from_path() {
         assert_eq!(program_name("/tmp/bin/corefetch"), "corefetch");
+    }
+
+    #[test]
+    fn parses_json_output_mode() {
+        let invocation = Invocation::from_args(vec![
+            "corefetch".to_owned(),
+            "--json".to_owned(),
+            "--verbose".to_owned(),
+        ]);
+
+        assert_eq!(invocation.output_mode(), OutputMode::Json);
+        assert_eq!(invocation.user_args(), &["--verbose".to_owned()]);
+    }
+
+    #[test]
+    fn later_output_flag_overrides_earlier_flag() {
+        let invocation = Invocation::from_args(vec![
+            "corefetch".to_owned(),
+            "--minimal".to_owned(),
+            "--json".to_owned(),
+        ]);
+
+        assert_eq!(invocation.output_mode(), OutputMode::Json);
     }
 }

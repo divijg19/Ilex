@@ -2,11 +2,13 @@ use std::fmt;
 use std::time::{Duration, Instant};
 
 mod cpu;
+mod disk;
 mod memory;
 mod os;
 mod parsers;
 
 pub use self::cpu::CpuInfoDetector;
+pub use self::disk::DiskDetector;
 pub use self::memory::MemoryInfoDetector;
 pub use self::os::OsReleaseDetector;
 
@@ -15,6 +17,7 @@ pub struct SystemSnapshot {
     pub os: Option<OsInfo>,
     pub cpu: Option<CpuInfo>,
     pub memory: Option<MemoryInfo>,
+    pub disk: Option<DiskInfo>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +45,29 @@ impl MemoryInfo {
         self.available_kib
             .map(|available| self.total_kib.saturating_sub(available))
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskInfo {
+    pub device: String,
+    pub filesystem: String,
+    pub mount_point: String,
+    pub total_kib: u64,
+    pub available_kib: Option<u64>,
+}
+
+impl DiskInfo {
+    pub fn used_kib(&self) -> Option<u64> {
+        self.available_kib
+            .map(|available| self.total_kib.saturating_sub(available))
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DiskMount {
+    pub device: String,
+    pub filesystem: String,
+    pub mount_point: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,6 +163,7 @@ impl DetectorRegistry {
                 Box::new(OsReleaseDetector::default()),
                 Box::new(CpuInfoDetector::default()),
                 Box::new(MemoryInfoDetector::default()),
+                Box::new(DiskDetector::default()),
             ],
         }
     }
@@ -195,9 +222,10 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::parsers::{parse_cpu_info, parse_meminfo, parse_os_release};
+    use super::parsers::{parse_cpu_info, parse_meminfo, parse_os_release, parse_primary_mount};
     use super::{
-        CpuInfoDetector, DetectionErrorKind, MemoryInfoDetector, OsReleaseDetector, SystemSnapshot,
+        CpuInfoDetector, DetectionErrorKind, DiskDetector, MemoryInfoDetector, OsReleaseDetector,
+        SystemSnapshot,
     };
     use crate::detectors::Detector;
 
@@ -220,6 +248,8 @@ mod tests {
         include_str!("../../tests/fixtures/proc/meminfo/invalid-total.txt");
     const MEMINFO_MISSING_TOTAL: &str =
         include_str!("../../tests/fixtures/proc/meminfo/missing-total.txt");
+    const MOUNTS_BASIC: &str = include_str!("../../tests/fixtures/proc/mounts/basic.txt");
+    const MOUNTS_NO_ROOT: &str = include_str!("../../tests/fixtures/proc/mounts/no-root.txt");
 
     #[test]
     fn parses_pretty_name_from_os_release() {
@@ -364,6 +394,37 @@ mod tests {
     }
 
     #[test]
+    fn parses_primary_disk_mount_from_fixture() {
+        let mount = parse_primary_mount(MOUNTS_BASIC).expect("mounts should parse");
+
+        assert_eq!(mount.device, "/dev/nvme0n1p2");
+        assert_eq!(mount.filesystem, "ext4");
+        assert_eq!(mount.mount_point, "/");
+    }
+
+    #[test]
+    fn mounts_without_root_report_missing_field() {
+        let error = parse_primary_mount(MOUNTS_NO_ROOT).expect_err("missing root should fail");
+
+        assert!(error.contains("missing root filesystem entry"));
+    }
+
+    #[test]
+    fn disk_detector_populates_snapshot_from_fixture() {
+        let detector = DiskDetector::new(proc_fixture_path("mounts", "basic.txt"));
+        let mut snapshot = SystemSnapshot::default();
+
+        detector
+            .detect(&mut snapshot)
+            .expect("disk detector should succeed");
+
+        let disk = snapshot.disk.as_ref().expect("disk snapshot should exist");
+        assert_eq!(disk.mount_point, "/");
+        assert!(disk.total_kib > 0);
+        assert!(disk.available_kib.is_some());
+    }
+
+    #[test]
     fn detect_all_records_timings_and_issues() {
         struct FailingDetector;
 
@@ -416,6 +477,18 @@ mod tests {
         assert_eq!(error.kind, DetectionErrorKind::Parse);
     }
 
+    #[test]
+    fn detector_error_kind_is_missing_field_for_missing_root_mount() {
+        let detector = DiskDetector::new(proc_fixture_path("mounts", "no-root.txt"));
+        let mut snapshot = SystemSnapshot::default();
+
+        let error = detector
+            .detect(&mut snapshot)
+            .expect_err("missing root mount should fail");
+
+        assert_eq!(error.kind, DetectionErrorKind::MissingField);
+    }
+
     fn fixture_path(name: &str) -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tests")
@@ -447,5 +520,7 @@ mod tests {
         assert!(fs::metadata(proc_fixture_path("meminfo", "no-available-no-free.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "invalid-total.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "missing-total.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("mounts", "basic.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("mounts", "no-root.txt")).is_ok());
     }
 }

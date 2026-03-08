@@ -3,12 +3,12 @@ use std::time::Instant;
 use crate::VERSION;
 use crate::cli::Invocation;
 use crate::config::ConfigState;
-use crate::contracts::evaluate_foundation_readiness;
+use crate::contracts::{
+    ReadinessReport, evaluate_baseline_readiness, evaluate_foundation_readiness,
+};
 use crate::detectors::DetectorRegistry;
 use crate::modules::ModuleRegistry;
-use crate::render::{
-    BootstrapRenderer, ReadinessCheckView, RenderView, Renderer, RendererRegistry, TimingEntry,
-};
+use crate::render::{ReadinessCheckView, ReadinessView, RenderView, RendererRegistry, TimingEntry};
 
 pub struct App {
     invocation: Invocation,
@@ -16,7 +16,6 @@ pub struct App {
     detectors: DetectorRegistry,
     modules: ModuleRegistry,
     renderers: RendererRegistry,
-    renderer: BootstrapRenderer,
 }
 
 impl App {
@@ -27,7 +26,6 @@ impl App {
             detectors: DetectorRegistry::bootstrap(),
             modules: ModuleRegistry::bootstrap(),
             renderers: RendererRegistry::bootstrap(),
-            renderer: BootstrapRenderer,
         }
     }
 
@@ -53,7 +51,15 @@ impl App {
             .iter()
             .map(ToString::to_string)
             .collect();
-        let readiness = evaluate_foundation_readiness(
+        let foundation_readiness = evaluate_foundation_readiness(
+            self.invocation.canonical_command(),
+            &detector_keys,
+            &module_keys,
+            &renderer_keys,
+            &module_entries,
+            detection.issues.len(),
+        );
+        let baseline_readiness = evaluate_baseline_readiness(
             self.invocation.canonical_command(),
             &detector_keys,
             &module_keys,
@@ -85,17 +91,8 @@ impl App {
                 timings
             },
             pipeline_duration: started_at.elapsed(),
-            contract_version: readiness.contract_version.to_owned(),
-            ready_for_foundations: readiness.ready_for_foundations,
-            readiness_checks: readiness
-                .checks
-                .iter()
-                .map(|check| ReadinessCheckView {
-                    key: check.key.to_owned(),
-                    passed: check.passed,
-                    detail: check.detail.clone(),
-                })
-                .collect(),
+            foundation_readiness: map_readiness(&foundation_readiness),
+            baseline_readiness: map_readiness(&baseline_readiness),
             issues: detection
                 .issues
                 .iter()
@@ -110,6 +107,24 @@ impl App {
                 .collect(),
         };
 
-        self.renderer.render(&view)
+        self.renderers
+            .render(self.invocation.output_mode().renderer_key(), &view)
+            .expect("selected renderer should be registered")
+    }
+}
+
+fn map_readiness(report: &ReadinessReport) -> ReadinessView {
+    ReadinessView {
+        contract_version: report.contract_version.to_owned(),
+        ready: report.ready,
+        checks: report
+            .checks
+            .iter()
+            .map(|check| ReadinessCheckView {
+                key: check.key.to_owned(),
+                passed: check.passed,
+                detail: check.detail.clone(),
+            })
+            .collect(),
     }
 }

@@ -6,7 +6,7 @@ pub struct ConfigState {
 impl ConfigState {
     pub fn bootstrap_defaults() -> Self {
         Self {
-            description: "foundation defaults (config loading deferred to 0.2.0)",
+            description: "baseline defaults (config loading deferred to 0.2.2)",
         }
     }
 

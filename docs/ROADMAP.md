@@ -42,6 +42,9 @@ Rules for version increments:
 | `0.1.3` | Parser Hardening | Split parser module and malformed fixture coverage |
 | `0.1.4` | Detector Structure | Per-domain detector implementation files |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
+| `0.2.1` | Environment Context | Shell and terminal reporting on top of the baseline fetch path |
+| `0.2.2` | Config Slice | Initial TOML config loading, module toggles, and ordering |
+| `0.2.3` | Baseline Closeout | Integration coverage, CI expansion, and documentation alignment |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
 | `0.4.0` | Stable Structured Output | Versioned JSON schema and config validation |
 | `0.5.0` | Layout and UX | Higher-quality terminal presentation without changing core architecture |
@@ -202,17 +205,19 @@ Objective: ship the first genuinely useful daily-driver release.
 
 Planned scope:
 
-- Add detectors for `disk`, `shell`, and `terminal`.
-- Add a default Unicode renderer for standard fetch output.
+- Add a primary-filesystem `disk` detector.
+- Add a default text renderer for standard fetch output.
 - Add a `--minimal` mode.
 - Add a `--json` mode backed by the same snapshot pipeline.
-- Introduce the initial TOML config file at `~/.config/corefetch/config.toml`.
-- Support module enable and disable toggles.
-- Support simple module ordering.
+- Add a machine-visible baseline readiness gate while preserving `foundation-v1`.
 - Add graceful fallback behavior for missing detector data.
 
 Out of scope:
 
+- `shell` and `terminal` detection
+- TOML config loading
+- Module enable and disable toggles
+- Simple module ordering
 - Runtime plugin loading
 - Advanced layout presets
 - Network telemetry
@@ -223,6 +228,78 @@ Exit criteria:
 - A user can install the binary, run `core`, and get useful system output without extra configuration.
 - JSON and human-readable output are both generated from the same internal snapshot.
 - Performance remains within the target budget for a baseline Linux run.
+
+Implementation status:
+
+- Default fetch rendering is now the standard output path.
+- `--minimal` and `--json` are now parsed and routed through the same snapshot pipeline.
+- The Linux detector set now includes a primary-filesystem `disk` detector.
+- Baseline readiness is exposed through the new `baseline-v1` contract while `foundation-v1` remains intact.
+
+## `0.2.1` Environment Context
+
+Objective: widen the baseline fetch output with immediate user environment context.
+
+Planned scope:
+
+- Add `shell` detection without introducing subprocesses.
+- Add `terminal` detection from deterministic environment-first sources.
+- Add matching modules and stable renderer ordering in text and JSON output.
+- Add fixture or deterministic env-driven coverage for both domains.
+
+Out of scope:
+
+- Config-driven module ordering
+- Terminal capability probing beyond basic identity
+- Advanced renderer layouts
+
+Exit criteria:
+
+- Default and minimal output include `shell` and `terminal` when available.
+- JSON output includes the same fields without special-case logic.
+
+## `0.2.2` Config Slice
+
+Objective: add the first real configuration surface without reopening the core probe pipeline.
+
+Planned scope:
+
+- Load `~/.config/corefetch/config.toml`.
+- Support module enable and disable toggles.
+- Support simple module ordering.
+- Support output-mode defaults.
+- Return actionable errors for invalid config values.
+
+Out of scope:
+
+- Detector execution policy changes
+- Plugin loading
+- Cross-platform config behavior
+
+Exit criteria:
+
+- Missing config files fall back cleanly to defaults.
+- Config overrides output ordering and module visibility predictably.
+
+## `0.2.3` Baseline Closeout
+
+Objective: harden the complete `0.2.x` baseline series before moving on to broader hardware work.
+
+Planned scope:
+
+- Add integration-style coverage for app bootstrapping and renderer mode selection.
+- Expand CI verification for default, minimal, and JSON output.
+- Align README and architecture docs with the implemented baseline feature set.
+
+Out of scope:
+
+- New hardware domains beyond the `0.2.x` plan
+- Layout-heavy renderer work
+
+Exit criteria:
+
+- The `0.2.x` series is covered by both unit and integration-style validation.
+- Public documentation describes the current product state accurately.
 
 ## `0.3.0` Hardware Expansion
 

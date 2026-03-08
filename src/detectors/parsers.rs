@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{CpuInfo, MemoryInfo, OsInfo};
+use super::{CpuInfo, DiskMount, MemoryInfo, OsInfo};
 
 pub(super) fn parse_os_release(content: &str) -> Result<OsInfo, String> {
     let values = parse_key_value_lines(content);
@@ -92,6 +92,37 @@ pub(super) fn parse_meminfo(content: &str) -> Result<MemoryInfo, String> {
     })
 }
 
+pub(super) fn parse_primary_mount(content: &str) -> Result<DiskMount, String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        let mut parts = line.split_whitespace();
+        let Some(device) = parts.next() else {
+            continue;
+        };
+        let Some(mount_point) = parts.next() else {
+            continue;
+        };
+        let Some(filesystem) = parts.next() else {
+            continue;
+        };
+
+        let mount_point = normalize_mount_field(mount_point);
+        if mount_point == "/" {
+            return Ok(DiskMount {
+                device: normalize_mount_field(device),
+                mount_point,
+                filesystem: normalize_mount_field(filesystem),
+            });
+        }
+    }
+
+    Err("missing root filesystem entry in mounts".to_owned())
+}
+
 fn parse_key_value_lines(content: &str) -> BTreeMap<String, String> {
     let mut values = BTreeMap::new();
 
@@ -142,4 +173,12 @@ fn normalize_value(value: &str) -> String {
         .trim_matches('"')
         .replace(r#"\""#, "\"")
         .replace(r#"\\"#, "\\")
+}
+
+fn normalize_mount_field(value: &str) -> String {
+    value
+        .replace("\\040", " ")
+        .replace("\\011", "\t")
+        .replace("\\012", "\n")
+        .replace("\\134", "\\")
 }

@@ -1,0 +1,2 @@
+tmpfs /run tmpfs rw,nosuid,nodev,size=3276800k 0 0
+proc /proc proc rw,nosuid,nodev,noexec,relatime 0 0

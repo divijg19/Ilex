@@ -1,5 +1,7 @@
 use std::time::Duration;
 
+use serde_json::{Value, json};
+
 use crate::modules::ModuleEntry;
 
 pub trait Renderer {
@@ -22,9 +24,8 @@ pub struct RenderView {
     pub module_entries: Vec<ModuleEntry>,
     pub timings: Vec<TimingEntry>,
     pub pipeline_duration: Duration,
-    pub contract_version: String,
-    pub ready_for_foundations: bool,
-    pub readiness_checks: Vec<ReadinessCheckView>,
+    pub foundation_readiness: ReadinessView,
+    pub baseline_readiness: ReadinessView,
     pub issues: Vec<String>,
 }
 
@@ -39,6 +40,97 @@ pub struct ReadinessCheckView {
     pub key: String,
     pub passed: bool,
     pub detail: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReadinessView {
+    pub contract_version: String,
+    pub ready: bool,
+    pub checks: Vec<ReadinessCheckView>,
+}
+
+pub struct FetchRenderer;
+
+impl Renderer for FetchRenderer {
+    fn key(&self) -> &'static str {
+        "fetch-text"
+    }
+
+    fn render(&self, view: &RenderView) -> String {
+        let mut lines: Vec<String> = view
+            .module_entries
+            .iter()
+            .map(|entry| format!("{}: {}", entry.label, entry.value))
+            .collect();
+
+        if lines.is_empty() {
+            lines.push("No system data available".to_owned());
+        }
+
+        if !view.issues.is_empty() {
+            lines.push(format!("Issues: {}", view.issues.len()));
+        }
+
+        lines.join("\n")
+    }
+}
+
+pub struct MinimalRenderer;
+
+impl Renderer for MinimalRenderer {
+    fn key(&self) -> &'static str {
+        "minimal-text"
+    }
+
+    fn render(&self, view: &RenderView) -> String {
+        if view.module_entries.is_empty() {
+            return "No system data available".to_owned();
+        }
+
+        view.module_entries
+            .iter()
+            .map(|entry| format!("{} {}", entry.label, entry.value))
+            .collect::<Vec<_>>()
+            .join(" | ")
+    }
+}
+
+pub struct JsonRenderer;
+
+impl Renderer for JsonRenderer {
+    fn key(&self) -> &'static str {
+        "json"
+    }
+
+    fn render(&self, view: &RenderView) -> String {
+        let payload = json!({
+            "program": "corefetch",
+            "version": view.version,
+            "binary": view.binary_name,
+            "alias": view.alias,
+            "primary_command": view.primary_command,
+            "primary_entrypoint": view.is_primary_entrypoint,
+            "args": view.raw_args,
+            "config": view.config_state,
+            "modules": view.module_entries.iter().map(module_entry_to_json).collect::<Vec<_>>(),
+            "issues": view.issues,
+            "timings": {
+                "pipeline_us": duration_to_micros(view.pipeline_duration),
+                "entries": view.timings.iter().map(|timing| {
+                    json!({
+                        "label": timing.label,
+                        "duration_us": duration_to_micros(timing.duration),
+                    })
+                }).collect::<Vec<_>>(),
+            },
+            "contracts": [
+                readiness_to_json("foundation", &view.foundation_readiness),
+                readiness_to_json("baseline", &view.baseline_readiness),
+            ],
+        });
+
+        serde_json::to_string_pretty(&payload).expect("json rendering should succeed")
+    }
 }
 
 pub struct BootstrapRenderer;
@@ -86,25 +178,49 @@ impl Renderer for BootstrapRenderer {
         }))
         .collect();
 
-        let readiness_lines: Vec<String> =
-            std::iter::once(format!("contract: {}", view.contract_version))
-                .chain(std::iter::once(format!(
-                    "foundation readiness: {}",
-                    if view.ready_for_foundations {
-                        "ready"
-                    } else {
-                        "blocked"
-                    }
-                )))
-                .chain(view.readiness_checks.iter().map(|check| {
-                    format!(
-                        "readiness: {}={} ({})",
-                        check.key,
-                        if check.passed { "pass" } else { "fail" },
-                        check.detail
-                    )
-                }))
-                .collect();
+        let foundation_lines: Vec<String> = std::iter::once(format!(
+            "contract: {}",
+            view.foundation_readiness.contract_version
+        ))
+        .chain(std::iter::once(format!(
+            "foundation readiness: {}",
+            if view.foundation_readiness.ready {
+                "ready"
+            } else {
+                "blocked"
+            }
+        )))
+        .chain(view.foundation_readiness.checks.iter().map(|check| {
+            format!(
+                "foundation check: {}={} ({})",
+                check.key,
+                if check.passed { "pass" } else { "fail" },
+                check.detail
+            )
+        }))
+        .collect();
+
+        let baseline_lines: Vec<String> = std::iter::once(format!(
+            "contract: {}",
+            view.baseline_readiness.contract_version
+        ))
+        .chain(std::iter::once(format!(
+            "baseline readiness: {}",
+            if view.baseline_readiness.ready {
+                "ready"
+            } else {
+                "blocked"
+            }
+        )))
+        .chain(view.baseline_readiness.checks.iter().map(|check| {
+            format!(
+                "baseline check: {}={} ({})",
+                check.key,
+                if check.passed { "pass" } else { "fail" },
+                check.detail
+            )
+        }))
+        .collect();
 
         let mut lines = vec![
             format!("corefetch {}", view.version),
@@ -122,11 +238,9 @@ impl Renderer for BootstrapRenderer {
         lines.extend(module_lines);
         lines.extend(issue_lines);
         lines.extend(timing_lines);
-        lines.extend(readiness_lines);
-        lines.push(format!(
-            "status: v{} foundation stabilization active",
-            view.version
-        ));
+        lines.extend(foundation_lines);
+        lines.extend(baseline_lines);
+        lines.push(format!("status: v{} baseline fetch active", view.version));
         lines.join("\n")
     }
 }
@@ -139,18 +253,54 @@ fn format_duration(duration: Duration) -> String {
     }
 }
 
+fn duration_to_micros(duration: Duration) -> u64 {
+    let micros = duration.as_micros();
+    if micros > u64::MAX as u128 {
+        u64::MAX
+    } else {
+        micros as u64
+    }
+}
+
+fn module_entry_to_json(entry: &ModuleEntry) -> Value {
+    json!({
+        "key": entry.key,
+        "label": entry.label,
+        "value": entry.value,
+    })
+}
+
+fn readiness_to_json(kind: &str, readiness: &ReadinessView) -> Value {
+    json!({
+        "kind": kind,
+        "contract_version": readiness.contract_version,
+        "ready": readiness.ready,
+        "checks": readiness.checks.iter().map(|check| {
+            json!({
+                "key": check.key,
+                "passed": check.passed,
+                "detail": check.detail,
+            })
+        }).collect::<Vec<_>>(),
+    })
+}
+
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
     use std::time::Duration;
 
-    use super::{BootstrapRenderer, ReadinessCheckView, RenderView, Renderer, TimingEntry};
+    use super::{
+        BootstrapRenderer, FetchRenderer, JsonRenderer, MinimalRenderer, ReadinessCheckView,
+        ReadinessView, RenderView, Renderer, TimingEntry,
+    };
     use crate::modules::ModuleEntry;
 
     #[test]
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.1.1",
+            version: "0.2.0",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -176,19 +326,35 @@ mod tests {
                     label: "Memory",
                     value: "7.8 GiB / 31.2 GiB".to_owned(),
                 },
+                ModuleEntry {
+                    key: "disk",
+                    label: "Disk",
+                    value: "31.2 GiB / 62.5 GiB (/)".to_owned(),
+                },
             ],
             timings: vec![TimingEntry {
                 label: "detector.os".to_owned(),
                 duration: Duration::from_micros(120),
             }],
             pipeline_duration: Duration::from_micros(250),
-            contract_version: "foundation-v1".to_owned(),
-            ready_for_foundations: true,
-            readiness_checks: vec![ReadinessCheckView {
-                key: "snapshot-flow".to_owned(),
-                passed: true,
-                detail: "renderable module entries: 3".to_owned(),
-            }],
+            foundation_readiness: ReadinessView {
+                contract_version: "foundation-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 4".to_owned(),
+                }],
+            },
+            baseline_readiness: ReadinessView {
+                contract_version: "baseline-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 4".to_owned(),
+                }],
+            },
             issues: Vec::new(),
         };
 
@@ -200,10 +366,124 @@ mod tests {
         assert!(output.contains("primary entrypoint: true"));
         assert!(output.contains("contract: foundation-v1"));
         assert!(output.contains("foundation readiness: ready"));
-        assert!(output.contains("readiness: snapshot-flow=pass (renderable module entries: 3)"));
+        assert!(output.contains("contract: baseline-v1"));
+        assert!(output.contains("baseline readiness: ready"));
+        assert!(
+            output.contains("foundation check: snapshot-flow=pass (renderable module entries: 4)")
+        );
+        assert!(
+            output.contains("baseline check: snapshot-flow=pass (renderable module entries: 4)")
+        );
         assert!(output.contains("CPU: ExampleCore 9000 (4 cores)"));
         assert!(output.contains("Memory: 7.8 GiB / 31.2 GiB"));
-        assert!(output.contains("status: v0.1.1 foundation stabilization active"));
+        assert!(output.contains("Disk: 31.2 GiB / 62.5 GiB (/)"));
+        assert!(output.contains("status: v0.2.0 baseline fetch active"));
+    }
+
+    #[test]
+    fn fetch_renderer_emits_module_lines() {
+        let renderer = FetchRenderer;
+        let output = renderer.render(&sample_view());
+
+        assert!(output.contains("OS: Fedora Linux 43"));
+        assert!(output.contains("Disk: 31.2 GiB / 62.5 GiB (/)"));
+    }
+
+    #[test]
+    fn minimal_renderer_collapses_to_single_line() {
+        let renderer = MinimalRenderer;
+        let output = renderer.render(&sample_view());
+
+        assert!(output.contains("OS Fedora Linux 43 | CPU ExampleCore 9000 (4 cores)"));
+        assert!(!output.contains('\n'));
+    }
+
+    #[test]
+    fn json_renderer_includes_contracts_and_modules() {
+        let renderer = JsonRenderer;
+        let output = renderer.render(&sample_view());
+        let parsed: Value = serde_json::from_str(&output).expect("json output should parse");
+
+        assert_eq!(parsed["program"], "corefetch");
+        assert_eq!(parsed["contracts"][0]["contract_version"], "foundation-v1");
+        assert_eq!(parsed["contracts"][1]["contract_version"], "baseline-v1");
+        assert_eq!(parsed["modules"][3]["key"], "disk");
+    }
+
+    fn sample_view() -> RenderView {
+        RenderView {
+            version: "0.2.0",
+            binary_name: "corefetch".to_owned(),
+            alias: "corefetch".to_owned(),
+            primary_command: "corefetch".to_owned(),
+            is_primary_entrypoint: true,
+            raw_args: Vec::new(),
+            config_state: "baseline defaults (config loading deferred to 0.2.2)".to_owned(),
+            detectors: vec![
+                "os".to_owned(),
+                "cpu".to_owned(),
+                "memory".to_owned(),
+                "disk".to_owned(),
+            ],
+            modules: vec![
+                "os".to_owned(),
+                "cpu".to_owned(),
+                "memory".to_owned(),
+                "disk".to_owned(),
+            ],
+            renderers: vec![
+                "bootstrap-text".to_owned(),
+                "fetch-text".to_owned(),
+                "minimal-text".to_owned(),
+                "json".to_owned(),
+            ],
+            module_entries: vec![
+                ModuleEntry {
+                    key: "os",
+                    label: "OS",
+                    value: "Fedora Linux 43".to_owned(),
+                },
+                ModuleEntry {
+                    key: "cpu",
+                    label: "CPU",
+                    value: "ExampleCore 9000 (4 cores)".to_owned(),
+                },
+                ModuleEntry {
+                    key: "memory",
+                    label: "Memory",
+                    value: "7.8 GiB / 31.2 GiB".to_owned(),
+                },
+                ModuleEntry {
+                    key: "disk",
+                    label: "Disk",
+                    value: "31.2 GiB / 62.5 GiB (/)".to_owned(),
+                },
+            ],
+            timings: vec![TimingEntry {
+                label: "detector.os".to_owned(),
+                duration: Duration::from_micros(120),
+            }],
+            pipeline_duration: Duration::from_micros(250),
+            foundation_readiness: ReadinessView {
+                contract_version: "foundation-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 4".to_owned(),
+                }],
+            },
+            baseline_readiness: ReadinessView {
+                contract_version: "baseline-v1".to_owned(),
+                ready: true,
+                checks: vec![ReadinessCheckView {
+                    key: "snapshot-flow".to_owned(),
+                    passed: true,
+                    detail: "renderable module entries: 4".to_owned(),
+                }],
+            },
+            issues: Vec::new(),
+        }
     }
 }
 
@@ -214,7 +494,12 @@ pub struct RendererRegistry {
 impl RendererRegistry {
     pub fn bootstrap() -> Self {
         Self {
-            renderers: vec![Box::new(BootstrapRenderer)],
+            renderers: vec![
+                Box::new(BootstrapRenderer),
+                Box::new(FetchRenderer),
+                Box::new(MinimalRenderer),
+                Box::new(JsonRenderer),
+            ],
         }
     }
 
@@ -223,5 +508,12 @@ impl RendererRegistry {
             .iter()
             .map(|renderer| renderer.key())
             .collect()
+    }
+
+    pub fn render(&self, key: &str, view: &RenderView) -> Option<String> {
+        self.renderers
+            .iter()
+            .find(|renderer| renderer.key() == key)
+            .map(|renderer| renderer.render(view))
     }
 }

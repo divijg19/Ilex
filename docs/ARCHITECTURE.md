@@ -1,13 +1,14 @@
 # corefetch Foundation Architecture
 
-This document defines the contract at `0.1.0`.
+This document defines the current stable internal contracts through `0.2.0`.
 
-The goal is still narrow: preserve the one-way detector to module to renderer pipeline while extending the foundation with the first core hardware domains.
+The goal remains narrow: preserve the one-way detector to module to renderer pipeline while adding the first user-facing baseline fetch output on top of the original foundation.
 
 ## Contract Version
 
 - Foundation contract version: `foundation-v1`
-- Release scope: `0.1.0`
+- Baseline contract version: `baseline-v1`
+- Release scope: `0.2.0`
 - Platform assumption: modern Linux only
 - Command model: `corefetch` is the canonical command; `core`, `cf`, and `ilex` are aliases
 
@@ -46,6 +47,10 @@ Current foundation detector set:
 - `cpu` via `/proc/cpuinfo`
 - `memory` via `/proc/meminfo`
 
+Current baseline detector additions:
+
+- `disk` via `/proc/mounts` plus filesystem statistics on the primary mount point
+
 ## Snapshot Contract
 
 Current snapshot fields:
@@ -55,6 +60,7 @@ pub struct SystemSnapshot {
     pub os: Option<OsInfo>,
     pub cpu: Option<CpuInfo>,
     pub memory: Option<MemoryInfo>,
+    pub disk: Option<DiskInfo>,
 }
 ```
 
@@ -62,7 +68,7 @@ Rules:
 
 - Snapshot fields are optional so failed or unsupported detectors do not force a process crash.
 - Snapshot expansion beyond `0.1.0` should add fields rather than replacing the top-level shape.
-- The foundation phase supports operating system, CPU, and memory information.
+- The current baseline phase supports operating system, CPU, memory, and primary-filesystem disk information.
 
 ## Module Contract
 
@@ -87,6 +93,10 @@ Current foundation module set:
 - `cpu`
 - `memory`
 
+Current baseline module additions:
+
+- `disk`
+
 ## Renderer Contract
 
 Renderer trait:
@@ -108,6 +118,12 @@ Current foundation renderer set:
 
 - `bootstrap-text`
 
+Current baseline renderer additions:
+
+- `fetch-text`
+- `minimal-text`
+- `json`
+
 ## Failure Semantics
 
 - Detection failures are recorded as issues instead of aborting the process.
@@ -116,7 +132,7 @@ Current foundation renderer set:
 
 ## Readiness Gate
 
-`0.1.0` is considered complete only when all of the following are true:
+`foundation-v1` is considered complete only when all of the following are true:
 
 - Canonical command remains `corefetch`
 - Detector registry includes `os`, `cpu`, and `memory`
@@ -127,11 +143,19 @@ Current foundation renderer set:
 
 The runtime binary prints these checks so the foundation gate can be inspected without reading the source.
 
-## Explicitly Deferred Beyond `0.1.0`
+`baseline-v1` is considered complete only when all of the following are true:
 
-- Configuration parsing
-- Structured JSON output
-- Multiple renderers
+- Canonical command remains `corefetch`
+- Detector registry includes `os`, `cpu`, `memory`, and `disk`
+- Module registry includes `os`, `cpu`, `memory`, and `disk`
+- Renderer registry includes `fetch-text`, `minimal-text`, and `json`
+- The snapshot produces renderable `os`, `cpu`, `memory`, and `disk` module entries
+- Detection issue count is zero in the happy path
+
+## Explicitly Deferred Beyond `0.2.0`
+
+- `shell` and `terminal` detection
+- Configuration parsing beyond initial `0.2.x` defaults
 - Plugin or extension loading
 - Cross-platform support
 

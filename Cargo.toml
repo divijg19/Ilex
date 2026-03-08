@@ -1,6 +1,6 @@
 [package]
 name = "corefetch"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2024"
 default-run = "corefetch"
 
@@ -13,3 +13,5 @@ name = "corefetch"
 path = "src/main.rs"
 
 [dependencies]
+libc = "0.2"
+serde_json = "1"
