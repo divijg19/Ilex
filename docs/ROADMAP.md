@@ -40,6 +40,7 @@ Rules for version increments:
 | `0.1.1` | Foundation Stabilization | CPU and memory parser fallback hardening |
 | `0.1.2` | Output Consistency | Shared formatting utilities for module output |
 | `0.1.3` | Parser Hardening | Split parser module and malformed fixture coverage |
+| `0.1.4` | Detector Structure | Per-domain detector implementation files |
 | `0.2.0` | Baseline Fetch | Useful default fetch output for daily use on Linux |
 | `0.3.0` | Hardware Expansion | Broader Linux detection coverage and stronger renderer behavior |
 | `0.4.0` | Stable Structured Output | Versioned JSON schema and config validation |
@@ -193,6 +194,7 @@ Implementation status:
 - Module output formatting now uses shared utilities for memory and core-count display.
 - Detector parser logic is separated into a dedicated parser submodule.
 - Malformed fixture coverage now asserts missing-field vs parse error behavior.
+- Detector implementations are now split by domain file for easier maintenance.
 
 ## `0.2.0` Baseline Fetch
 
