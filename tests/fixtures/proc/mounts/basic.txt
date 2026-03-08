@@ -1,0 +1,2 @@
+/dev/nvme0n1p2 / ext4 rw,relatime 0 0
+tmpfs /run tmpfs rw,nosuid,nodev,size=3276800k 0 0

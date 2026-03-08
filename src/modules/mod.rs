@@ -1,5 +1,5 @@
 use crate::detectors::SystemSnapshot;
-use crate::formatting::{format_core_count, format_memory_usage};
+use crate::formatting::{format_core_count, format_disk_usage, format_memory_usage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ModuleEntry {
@@ -21,6 +21,9 @@ pub struct CpuModule;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MemoryModule;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DiskModule;
 
 impl Module for OsModule {
     fn key(&self) -> &'static str {
@@ -68,6 +71,20 @@ impl Module for MemoryModule {
     }
 }
 
+impl Module for DiskModule {
+    fn key(&self) -> &'static str {
+        "disk"
+    }
+
+    fn collect(&self, snapshot: &SystemSnapshot) -> Option<ModuleEntry> {
+        snapshot.disk.as_ref().map(|disk| ModuleEntry {
+            key: "disk",
+            label: "Disk",
+            value: format_disk_usage(disk.total_kib, disk.used_kib(), &disk.mount_point),
+        })
+    }
+}
+
 pub struct ModuleRegistry {
     modules: Vec<Box<dyn Module>>,
 }
@@ -79,6 +96,7 @@ impl ModuleRegistry {
                 Box::new(OsModule),
                 Box::new(CpuModule),
                 Box::new(MemoryModule),
+                Box::new(DiskModule),
             ],
         }
     }
@@ -97,8 +115,8 @@ impl ModuleRegistry {
 
 #[cfg(test)]
 mod tests {
-    use super::{CpuModule, MemoryModule, Module, OsModule};
-    use crate::detectors::{CpuInfo, MemoryInfo, OsInfo, SystemSnapshot};
+    use super::{CpuModule, DiskModule, MemoryModule, Module, OsModule};
+    use crate::detectors::{CpuInfo, DiskInfo, MemoryInfo, OsInfo, SystemSnapshot};
 
     #[test]
     fn os_module_uses_pretty_name() {
@@ -153,5 +171,25 @@ mod tests {
 
         assert_eq!(entry.label, "Memory");
         assert_eq!(entry.value, "7.8 GiB / 31.2 GiB");
+    }
+
+    #[test]
+    fn disk_module_formats_used_total_and_mount_point() {
+        let module = DiskModule;
+        let snapshot = SystemSnapshot {
+            disk: Some(DiskInfo {
+                device: "/dev/nvme0n1p2".to_owned(),
+                filesystem: "ext4".to_owned(),
+                mount_point: "/".to_owned(),
+                total_kib: 65536000,
+                available_kib: Some(32768000),
+            }),
+            ..SystemSnapshot::default()
+        };
+
+        let entry = module.collect(&snapshot).expect("disk module should emit");
+
+        assert_eq!(entry.label, "Disk");
+        assert_eq!(entry.value, "31.2 GiB / 62.5 GiB (/)");
     }
 }

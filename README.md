@@ -46,6 +46,14 @@ corefetch
 ```
 
 ```bash
+corefetch --minimal
+```
+
+```bash
+corefetch --json
+```
+
+```bash
 core
 ```
 
@@ -124,26 +132,25 @@ sensors
 
 ## Example Output
 
-Example output may resemble:
+Current baseline output resembles:
 
 ```
 OS: Fedora Linux 43
-Kernel: 6.x
-CPU: Ryzen 7
-GPU: AMD Radeon
-Memory: 6.2 GiB / 32 GiB
-Disk: 140 GiB / 1 TB
-Shell: zsh
-Terminal: Ghostty
+CPU: Ryzen 7 7840U (16 cores)
+Memory: 6.2 GiB / 32.0 GiB
+Disk: 140.0 GiB / 512.0 GiB (/)
 ```
 
-Future formats may include graphical bars:
+Current alternate modes:
 
-```
-CPU    ███████░░░ 68%
-RAM    █████░░░░░ 42%
-DISK   ████████░░ 81%
-```
+- `--minimal` renders a compact single-line summary.
+- `--json` renders machine-readable output from the same snapshot pipeline.
+
+Future output expansion still includes:
+
+- shell and terminal reporting
+- broader hardware coverage
+- richer layout and graph modes
 
 ---
 
@@ -239,20 +246,21 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.1.4`
+- Current version: `0.2.0`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
-- Implemented Linux detectors: `os`, `cpu`, `memory`
+- Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`
 - Implemented module pipeline: detector -> module -> renderer
-- Foundation contract and readiness gate: `foundation-v1`
-- Shared module formatting utilities are now in place for core-count and memory display
+- Output modes: default fetch, `--minimal`, `--json`
+- Contracts and readiness gates: `foundation-v1` preserved, `baseline-v1` added
+- Shared module formatting utilities are now in place for core-count, memory, and disk display
 - Detector parsing is split into a dedicated submodule with malformed-input fixture coverage
 - Detector implementations are split by domain file for maintainability
-- CI checks include format, tests, build, primary entrypoint, and readiness verification
+- CI checks include format, tests, build, default output, minimal output, and JSON verification
 
 Near-term focus:
 
-- `0.1.x` stabilization (parser hardening, test coverage, output consistency)
-- `0.2.0` baseline fetch expansion (`disk`, `shell`, `terminal`, minimal and JSON modes)
+- `0.2.1` environment-context expansion (`shell`, `terminal`)
+- `0.2.2` initial config loading and module ordering/toggles
 
 ---
 
