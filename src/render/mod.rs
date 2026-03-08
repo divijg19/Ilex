@@ -265,10 +265,7 @@ impl Renderer for BootstrapRenderer {
         lines.extend(foundation_lines);
         lines.extend(baseline_lines);
         lines.extend(environment_lines);
-        lines.push(format!(
-            "status: v{} environment context active",
-            view.version
-        ));
+        lines.push(format!("status: v{} config slice active", view.version));
         lines.join("\n")
     }
 }
@@ -328,13 +325,13 @@ mod tests {
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.2.1",
+            version: "0.2.2",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
             is_primary_entrypoint: true,
             raw_args: Vec::new(),
-            config_state: "bootstrap".to_owned(),
+            config_state: "defaults (no config file found)".to_owned(),
             detectors: vec!["os".to_owned()],
             modules: vec!["os".to_owned()],
             renderers: vec!["bootstrap-text".to_owned()],
@@ -431,7 +428,7 @@ mod tests {
         assert!(output.contains("Disk: 31.2 GiB / 62.5 GiB (/)"));
         assert!(output.contains("Shell: fish"));
         assert!(output.contains("Terminal: Ghostty (xterm-256color)"));
-        assert!(output.contains("status: v0.2.1 environment context active"));
+        assert!(output.contains("status: v0.2.2 config slice active"));
     }
 
     #[test]
@@ -473,13 +470,13 @@ mod tests {
 
     fn sample_view() -> RenderView {
         RenderView {
-            version: "0.2.1",
+            version: "0.2.2",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
             is_primary_entrypoint: true,
             raw_args: Vec::new(),
-            config_state: "baseline defaults (config loading deferred to 0.2.2)".to_owned(),
+            config_state: "defaults (no config file found)".to_owned(),
             detectors: vec![
                 "os".to_owned(),
                 "cpu".to_owned(),

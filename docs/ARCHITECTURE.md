@@ -1,6 +1,6 @@
 # corefetch Foundation Architecture
 
-This document defines the current stable internal contracts through `0.2.1`.
+This document defines the current stable internal contracts through `0.2.2`.
 
 The goal remains narrow: preserve the one-way detector to module to renderer pipeline while adding the first user-facing baseline fetch output on top of the original foundation.
 
@@ -9,7 +9,7 @@ The goal remains narrow: preserve the one-way detector to module to renderer pip
 - Foundation contract version: `foundation-v1`
 - Baseline contract version: `baseline-v1`
 - Environment contract version: `environment-v1`
-- Release scope: `0.2.1`
+- Release scope: `0.2.2`
 - Platform assumption: modern Linux only
 - Command model: `corefetch` is the canonical command; `core`, `cf`, and `ilex` are aliases
 
@@ -137,6 +137,22 @@ Current baseline renderer additions:
 - `minimal-text`
 - `json`
 
+## Configuration Contract
+
+Current `0.2.2` config behavior:
+
+- Config is loaded from `~/.config/corefetch/config.toml` when present.
+- Missing config falls back to defaults without changing startup behavior.
+- Invalid config values fail startup with an actionable error message.
+- Config affects renderer selection defaults and rendered module presentation only.
+- Config does not change detector execution policy in `0.2.x`.
+
+Currently supported config keys:
+
+- `output.default_mode`
+- `modules.order`
+- `modules.enabled.<key>`
+
 ## Failure Semantics
 
 - Detection failures are recorded as issues instead of aborting the process.
@@ -174,9 +190,10 @@ The runtime binary prints these checks so the foundation gate can be inspected w
 - The snapshot produces renderable `os`, `cpu`, `memory`, `disk`, `shell`, and `terminal` module entries
 - Detection issue count is zero in the happy path
 
-## Explicitly Deferred Beyond `0.2.1`
+## Explicitly Deferred Beyond `0.2.2`
 
 - Configuration parsing beyond initial `0.2.x` defaults
+- Detector execution policy changes driven by config
 - Plugin or extension loading
 - Cross-platform support
 
