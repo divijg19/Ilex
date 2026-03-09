@@ -241,7 +241,7 @@ Active implementation phase.
 
 Current release status:
 
-- Current version: `0.2.3`
+- Current version: `0.3.0`
 - Canonical command: `corefetch` (`core`, `cf`, and `ilex` are aliases)
 - Implemented Linux detectors: `os`, `cpu`, `memory`, `disk`, `shell`, `terminal`
 - Implemented module pipeline: detector -> module -> renderer
@@ -253,10 +253,12 @@ Current release status:
 - CI checks include format, tests, build, default output, minimal output, JSON verification, configured-output verification, and invalid-config verification
 - Config loading now supports output defaults, simple module ordering, and per-module toggles from `~/.config/corefetch/config.toml`
 - Integration-style runtime coverage now verifies default, configured, JSON-override, and invalid-config startup paths
+- Terminal detection now captures capability groundwork for plain, ansi256, and truecolor environments
+- Memory detection now retains optional free, buffers, and cached inputs for later renderer expansion
 
 Near-term focus:
 
-- `0.3.0` broader hardware expansion after the baseline line is closed out
+- `0.3.1` GPU domain expansion on top of the new capability groundwork
 - `0.4.0` stable structured output and schema hardening
 
 ---

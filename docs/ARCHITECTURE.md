@@ -1,6 +1,6 @@
 # corefetch Foundation Architecture
 
-This document defines the current stable internal contracts through `0.2.3`.
+This document defines the current stable internal contracts through `0.3.0`.
 
 The goal remains narrow: preserve the one-way detector to module to renderer pipeline while adding the first user-facing baseline fetch output on top of the original foundation.
 
@@ -9,7 +9,7 @@ The goal remains narrow: preserve the one-way detector to module to renderer pip
 - Foundation contract version: `foundation-v1`
 - Baseline contract version: `baseline-v1`
 - Environment contract version: `environment-v1`
-- Release scope: `0.2.3`
+- Release scope: `0.3.0`
 - Platform assumption: modern Linux only
 - Command model: `corefetch` is the canonical command; `core`, `cf`, and `ilex` are aliases
 
@@ -139,7 +139,7 @@ Current baseline renderer additions:
 
 ## Configuration Contract
 
-Current `0.2.3` config behavior:
+Current `0.3.0` config behavior:
 
 - Config is loaded from `~/.config/corefetch/config.toml` when present.
 - Missing config falls back to defaults without changing startup behavior.
@@ -192,16 +192,18 @@ The runtime binary prints these checks so the foundation gate can be inspected w
 
 ## Validation Contract
 
-Current `0.2.3` validation behavior:
+Current `0.3.0` validation behavior:
 
 - Unit coverage continues to validate parsers, detectors, modules, renderers, contracts, and config loading.
 - Integration-style runtime tests now validate no-config startup, configured startup, explicit CLI override of configured defaults, and invalid-config failure behavior.
 - CI verifies the default fetch path, the configured minimal path, the JSON path, and the invalid-config path.
+- Unit tests now validate terminal capability classification and richer memory parsing inputs.
 
-## Explicitly Deferred Beyond `0.2.3`
+## Explicitly Deferred Beyond `0.3.0`
 
 - Configuration parsing beyond initial `0.2.x` defaults
 - Detector execution policy changes driven by config
+- GPU and network detector expansion
 - Plugin or extension loading
 - Cross-platform support
 

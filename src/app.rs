@@ -9,7 +9,10 @@ use crate::contracts::{
 };
 use crate::detectors::DetectorRegistry;
 use crate::modules::ModuleRegistry;
-use crate::render::{ReadinessCheckView, ReadinessView, RenderView, RendererRegistry, TimingEntry};
+use crate::render::{
+    ReadinessCheckView, ReadinessView, RenderView, RendererRegistry, TerminalContextView,
+    TimingEntry,
+};
 
 pub struct App {
     invocation: Invocation,
@@ -91,6 +94,15 @@ impl App {
             modules: module_keys,
             renderers: renderer_keys,
             module_entries,
+            terminal_context: detection.snapshot.terminal.as_ref().map(|terminal| {
+                TerminalContextView {
+                    name: terminal.name.clone(),
+                    term: terminal.term.clone(),
+                    color_term: terminal.color_term.clone(),
+                    capability: terminal.capability.as_str().to_owned(),
+                    unicode: terminal.unicode,
+                }
+            }),
             timings: {
                 let mut timings = vec![TimingEntry {
                     label: "detection.total".to_owned(),

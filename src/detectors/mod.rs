@@ -16,6 +16,23 @@ pub use self::os::OsReleaseDetector;
 pub use self::shell::ShellDetector;
 pub use self::terminal::TerminalDetector;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalCapability {
+    Plain,
+    Ansi256,
+    Truecolor,
+}
+
+impl TerminalCapability {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Plain => "plain",
+            Self::Ansi256 => "ansi256",
+            Self::Truecolor => "truecolor",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct SystemSnapshot {
     pub os: Option<OsInfo>,
@@ -44,6 +61,9 @@ pub struct CpuInfo {
 pub struct MemoryInfo {
     pub total_kib: u64,
     pub available_kib: Option<u64>,
+    pub free_kib: Option<u64>,
+    pub buffers_kib: Option<u64>,
+    pub cached_kib: Option<u64>,
 }
 
 impl MemoryInfo {
@@ -80,6 +100,8 @@ pub struct TerminalInfo {
     pub name: String,
     pub term: Option<String>,
     pub color_term: Option<String>,
+    pub capability: TerminalCapability,
+    pub unicode: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -249,7 +271,7 @@ mod tests {
     };
     use super::{
         CpuInfoDetector, DetectionErrorKind, DiskDetector, MemoryInfoDetector, OsReleaseDetector,
-        ShellDetector, SystemSnapshot, TerminalDetector,
+        ShellDetector, SystemSnapshot, TerminalCapability, TerminalDetector,
     };
     use crate::detectors::Detector;
 
@@ -369,6 +391,9 @@ mod tests {
 
         assert_eq!(memory.total_kib, 32768000);
         assert_eq!(memory.available_kib, Some(24576000));
+        assert_eq!(memory.free_kib, None);
+        assert_eq!(memory.buffers_kib, None);
+        assert_eq!(memory.cached_kib, None);
         assert_eq!(memory.used_kib(), Some(8192000));
     }
 
@@ -378,7 +403,22 @@ mod tests {
 
         assert_eq!(memory.total_kib, 16384000);
         assert_eq!(memory.available_kib, Some(8192000));
+        assert_eq!(memory.free_kib, Some(8192000));
         assert_eq!(memory.used_kib(), Some(8192000));
+    }
+
+    #[test]
+    fn meminfo_captures_buffer_and_cache_breakdown_when_present() {
+        let memory = parse_meminfo(include_str!(
+            "../../tests/fixtures/proc/meminfo/with-breakdown.txt"
+        ))
+        .expect("meminfo with breakdown should parse");
+
+        assert_eq!(memory.total_kib, 32768000);
+        assert_eq!(memory.available_kib, Some(24576000));
+        assert_eq!(memory.free_kib, Some(12288000));
+        assert_eq!(memory.buffers_kib, Some(1024000));
+        assert_eq!(memory.cached_kib, Some(5632000));
     }
 
     #[test]
@@ -522,6 +562,8 @@ mod tests {
         assert_eq!(terminal.name, "Ghostty");
         assert_eq!(terminal.term.as_deref(), Some("xterm-256color"));
         assert_eq!(terminal.color_term.as_deref(), Some("truecolor"));
+        assert_eq!(terminal.capability, TerminalCapability::Truecolor);
+        assert!(terminal.unicode);
     }
 
     #[test]
@@ -539,14 +581,29 @@ mod tests {
             .expect("terminal snapshot should exist");
         assert_eq!(terminal.name, "unknown");
         assert_eq!(terminal.term, None);
+        assert_eq!(terminal.capability, TerminalCapability::Plain);
+        assert!(!terminal.unicode);
     }
 
     #[test]
     fn parses_terminal_info_from_known_values() {
-        let terminal = parse_terminal_info(Some("Ghostty"), Some("xterm-256color"), None);
+        let terminal =
+            parse_terminal_info(Some("Ghostty"), Some("xterm-256color"), Some("truecolor"));
 
         assert_eq!(terminal.name, "Ghostty");
         assert_eq!(terminal.term.as_deref(), Some("xterm-256color"));
+        assert_eq!(terminal.color_term.as_deref(), Some("truecolor"));
+        assert_eq!(terminal.capability, TerminalCapability::Truecolor);
+        assert!(terminal.unicode);
+    }
+
+    #[test]
+    fn parses_terminal_info_as_plain_for_basic_terms() {
+        let terminal = parse_terminal_info(None, Some("vt100"), None);
+
+        assert_eq!(terminal.name, "vt100");
+        assert_eq!(terminal.capability, TerminalCapability::Plain);
+        assert!(!terminal.unicode);
     }
 
     #[test]
@@ -666,6 +723,7 @@ mod tests {
         assert!(fs::metadata(proc_fixture_path("meminfo", "no-available-no-free.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "invalid-total.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("meminfo", "missing-total.txt")).is_ok());
+        assert!(fs::metadata(proc_fixture_path("meminfo", "with-breakdown.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("mounts", "basic.txt")).is_ok());
         assert!(fs::metadata(proc_fixture_path("mounts", "no-root.txt")).is_ok());
         assert!(fs::metadata(etc_fixture_path("passwd", "basic.txt")).is_ok());
