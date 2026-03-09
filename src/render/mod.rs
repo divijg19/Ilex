@@ -22,6 +22,7 @@ pub struct RenderView {
     pub modules: Vec<String>,
     pub renderers: Vec<String>,
     pub module_entries: Vec<ModuleEntry>,
+    pub terminal_context: Option<TerminalContextView>,
     pub timings: Vec<TimingEntry>,
     pub pipeline_duration: Duration,
     pub foundation_readiness: ReadinessView,
@@ -48,6 +49,15 @@ pub struct ReadinessView {
     pub contract_version: String,
     pub ready: bool,
     pub checks: Vec<ReadinessCheckView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalContextView {
+    pub name: String,
+    pub term: Option<String>,
+    pub color_term: Option<String>,
+    pub capability: String,
+    pub unicode: bool,
 }
 
 pub struct FetchRenderer;
@@ -113,6 +123,13 @@ impl Renderer for JsonRenderer {
             "primary_entrypoint": view.is_primary_entrypoint,
             "args": view.raw_args,
             "config": view.config_state,
+            "terminal": view.terminal_context.as_ref().map(|terminal| json!({
+                "name": terminal.name.as_str(),
+                "term": terminal.term.as_deref(),
+                "color_term": terminal.color_term.as_deref(),
+                "capability": terminal.capability.as_str(),
+                "unicode": terminal.unicode,
+            })),
             "modules": view.module_entries.iter().map(module_entry_to_json).collect::<Vec<_>>(),
             "issues": view.issues,
             "timings": {
@@ -257,6 +274,18 @@ impl Renderer for BootstrapRenderer {
             format!("detectors: {}", view.detectors.join(", ")),
             format!("modules: {}", view.modules.join(", ")),
             format!("renderers: {}", view.renderers.join(", ")),
+            format!(
+                "terminal context: {}",
+                view.terminal_context
+                    .as_ref()
+                    .map(|terminal| {
+                        format!(
+                            "{} capability={} unicode={}",
+                            terminal.name, terminal.capability, terminal.unicode
+                        )
+                    })
+                    .unwrap_or_else(|| "<none>".to_owned())
+            ),
         ];
 
         lines.extend(module_lines);
@@ -266,7 +295,7 @@ impl Renderer for BootstrapRenderer {
         lines.extend(baseline_lines);
         lines.extend(environment_lines);
         lines.push(format!(
-            "status: v{} baseline closeout active",
+            "status: v{} capability groundwork active",
             view.version
         ));
         lines.join("\n")
@@ -320,7 +349,7 @@ mod tests {
 
     use super::{
         BootstrapRenderer, FetchRenderer, JsonRenderer, MinimalRenderer, ReadinessCheckView,
-        ReadinessView, RenderView, Renderer, TimingEntry,
+        ReadinessView, RenderView, Renderer, TerminalContextView, TimingEntry,
     };
     use crate::modules::ModuleEntry;
 
@@ -328,7 +357,7 @@ mod tests {
     fn renderer_includes_timing_lines() {
         let renderer = BootstrapRenderer;
         let view = RenderView {
-            version: "0.2.3",
+            version: "0.3.0",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -338,6 +367,13 @@ mod tests {
             detectors: vec!["os".to_owned()],
             modules: vec!["os".to_owned()],
             renderers: vec!["bootstrap-text".to_owned()],
+            terminal_context: Some(TerminalContextView {
+                name: "Ghostty".to_owned(),
+                term: Some("xterm-256color".to_owned()),
+                color_term: Some("truecolor".to_owned()),
+                capability: "truecolor".to_owned(),
+                unicode: true,
+            }),
             module_entries: vec![
                 ModuleEntry {
                     key: "os",
@@ -411,6 +447,7 @@ mod tests {
         assert!(output.contains("timing: detector.os=120 us"));
         assert!(output.contains("primary command: corefetch"));
         assert!(output.contains("primary entrypoint: true"));
+        assert!(output.contains("terminal context: Ghostty capability=truecolor unicode=true"));
         assert!(output.contains("contract: foundation-v1"));
         assert!(output.contains("foundation readiness: ready"));
         assert!(output.contains("contract: baseline-v1"));
@@ -431,7 +468,7 @@ mod tests {
         assert!(output.contains("Disk: 31.2 GiB / 62.5 GiB (/)"));
         assert!(output.contains("Shell: fish"));
         assert!(output.contains("Terminal: Ghostty (xterm-256color)"));
-        assert!(output.contains("status: v0.2.3 baseline closeout active"));
+        assert!(output.contains("status: v0.3.0 capability groundwork active"));
     }
 
     #[test]
@@ -459,6 +496,8 @@ mod tests {
         let parsed: Value = serde_json::from_str(&output).expect("json output should parse");
 
         assert_eq!(parsed["program"], "corefetch");
+        assert_eq!(parsed["terminal"]["capability"], "truecolor");
+        assert_eq!(parsed["terminal"]["unicode"], true);
         assert_eq!(parsed["contracts"][0]["contract_version"], "foundation-v1");
         assert_eq!(parsed["contracts"][1]["contract_version"], "baseline-v1");
         assert_eq!(parsed["contracts"][2]["contract_version"], "environment-v1");
@@ -473,7 +512,7 @@ mod tests {
 
     fn sample_view() -> RenderView {
         RenderView {
-            version: "0.2.3",
+            version: "0.3.0",
             binary_name: "corefetch".to_owned(),
             alias: "corefetch".to_owned(),
             primary_command: "corefetch".to_owned(),
@@ -502,6 +541,13 @@ mod tests {
                 "minimal-text".to_owned(),
                 "json".to_owned(),
             ],
+            terminal_context: Some(TerminalContextView {
+                name: "Ghostty".to_owned(),
+                term: Some("xterm-256color".to_owned()),
+                color_term: Some("truecolor".to_owned()),
+                capability: "truecolor".to_owned(),
+                unicode: true,
+            }),
             module_entries: vec![
                 ModuleEntry {
                     key: "os",

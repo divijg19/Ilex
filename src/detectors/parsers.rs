@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use super::{CpuInfo, DiskMount, MemoryInfo, OsInfo, TerminalInfo};
+use super::{CpuInfo, DiskMount, MemoryInfo, OsInfo, TerminalCapability, TerminalInfo};
 
 pub(super) fn parse_os_release(content: &str) -> Result<OsInfo, String> {
     let values = parse_key_value_lines(content);
@@ -89,6 +89,9 @@ pub(super) fn parse_meminfo(content: &str) -> Result<MemoryInfo, String> {
     Ok(MemoryInfo {
         total_kib,
         available_kib,
+        free_kib: values.get("MemFree").copied(),
+        buffers_kib: values.get("Buffers").copied(),
+        cached_kib: values.get("Cached").copied(),
     })
 }
 
@@ -165,12 +168,59 @@ pub(super) fn parse_terminal_info(
         .or_else(|| term.clone())
         .or_else(|| color_term.clone())
         .unwrap_or_else(|| "unknown".to_owned());
+    let capability = detect_terminal_capability(term.as_deref(), color_term.as_deref());
+    let unicode = detect_terminal_unicode_support(term.as_deref(), capability);
 
     TerminalInfo {
         name,
         term,
         color_term,
+        capability,
+        unicode,
     }
+}
+
+fn detect_terminal_capability(term: Option<&str>, color_term: Option<&str>) -> TerminalCapability {
+    let normalized_color = color_term
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if normalized_color
+        .as_deref()
+        .is_some_and(|value| matches!(value, "truecolor" | "24bit"))
+    {
+        return TerminalCapability::Truecolor;
+    }
+
+    let normalized_term = term
+        .map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty());
+    if normalized_term
+        .as_deref()
+        .is_some_and(|value| value.contains("256color"))
+    {
+        return TerminalCapability::Ansi256;
+    }
+
+    TerminalCapability::Plain
+}
+
+fn detect_terminal_unicode_support(term: Option<&str>, capability: TerminalCapability) -> bool {
+    if matches!(
+        capability,
+        TerminalCapability::Truecolor | TerminalCapability::Ansi256
+    ) {
+        return true;
+    }
+
+    term.map(|value| value.trim().to_ascii_lowercase())
+        .filter(|value| !value.is_empty())
+        .is_some_and(|value| {
+            !matches!(value.as_str(), "dumb" | "linux" | "vt100")
+                && (value.contains("xterm")
+                    || value.contains("screen")
+                    || value.contains("tmux")
+                    || value.contains("rxvt"))
+        })
 }
 
 fn parse_key_value_lines(content: &str) -> BTreeMap<String, String> {

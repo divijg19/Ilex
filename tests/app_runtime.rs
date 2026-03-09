@@ -80,8 +80,10 @@ fn explicit_json_flag_overrides_configured_default_mode() {
         serde_json::from_str(&stdout).expect("json output should parse");
 
     assert!(output.status.success());
-    assert_eq!(parsed["version"], "0.2.3");
+    assert_eq!(parsed["version"], "0.3.0");
     assert_eq!(parsed["modules"][0]["key"], "shell");
+    assert_eq!(parsed["terminal"]["capability"], "truecolor");
+    assert_eq!(parsed["terminal"]["unicode"], true);
     assert!(
         parsed["modules"]
             .as_array()

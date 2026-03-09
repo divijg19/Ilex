@@ -335,6 +335,13 @@ Planned scope:
 - Add more robust fixture coverage for hardware-dependent parsing paths.
 - Introduce benchmark comparisons against representative fastfetch runs on the same machine class.
 
+Implementation status:
+
+- Terminal detection now reports capability groundwork for `plain`, `ansi256`, and `truecolor` environments.
+- The render path now carries terminal context separately from module text output.
+- JSON output now exposes additive terminal capability metadata for future renderer work.
+- Memory detection now retains optional `MemFree`, `Buffers`, and `Cached` inputs without changing user-facing output yet.
+
 Out of scope:
 
 - Live dashboards

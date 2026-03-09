@@ -157,7 +157,8 @@ mod tests {
         CpuModule, DiskModule, MemoryModule, Module, OsModule, ShellModule, TerminalModule,
     };
     use crate::detectors::{
-        CpuInfo, DiskInfo, MemoryInfo, OsInfo, ShellInfo, SystemSnapshot, TerminalInfo,
+        CpuInfo, DiskInfo, MemoryInfo, OsInfo, ShellInfo, SystemSnapshot, TerminalCapability,
+        TerminalInfo,
     };
 
     #[test]
@@ -203,6 +204,9 @@ mod tests {
             memory: Some(MemoryInfo {
                 total_kib: 32768000,
                 available_kib: Some(24576000),
+                free_kib: Some(12288000),
+                buffers_kib: Some(1024000),
+                cached_kib: Some(5632000),
             }),
             ..SystemSnapshot::default()
         };
@@ -260,6 +264,8 @@ mod tests {
                 name: "Ghostty".to_owned(),
                 term: Some("xterm-256color".to_owned()),
                 color_term: Some("truecolor".to_owned()),
+                capability: TerminalCapability::Truecolor,
+                unicode: true,
             }),
             ..SystemSnapshot::default()
         };
