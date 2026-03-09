@@ -29,11 +29,22 @@ fn write_config(home: &std::path::Path, file_name: &str) {
 }
 
 fn run_corefetch(home: &std::path::Path, args: &[&str]) -> std::process::Output {
-    let output = Command::new(binary_path())
-        .env("HOME", home)
-        .args(args)
-        .output()
-        .expect("corefetch should run");
+    run_corefetch_with_env(home, args, &[])
+}
+
+fn run_corefetch_with_env(
+    home: &std::path::Path,
+    args: &[&str],
+    env_vars: &[(&str, &str)],
+) -> std::process::Output {
+    let mut command = Command::new(binary_path());
+    command.env("HOME", home).args(args);
+
+    for (key, value) in env_vars {
+        command.env(key, value);
+    }
+
+    let output = command.output().expect("corefetch should run");
 
     fs::remove_dir_all(home).expect("temporary home directory should be cleaned up");
     output
@@ -74,7 +85,15 @@ fn explicit_json_flag_overrides_configured_default_mode() {
     let home = make_temp_home("json-override-runtime");
     write_config(&home, "basic.toml");
 
-    let output = run_corefetch(&home, &["--json"]);
+    let output = run_corefetch_with_env(
+        &home,
+        &["--json"],
+        &[
+            ("TERM_PROGRAM", "Ghostty"),
+            ("TERM", "xterm-256color"),
+            ("COLORTERM", "truecolor"),
+        ],
+    );
     let stdout = String::from_utf8(output.stdout).expect("stdout should be valid utf8");
     let parsed: serde_json::Value =
         serde_json::from_str(&stdout).expect("json output should parse");
